@@ -1,0 +1,285 @@
+version: "4.1"
+name: atk_f407
+type: ARM
+deviceName: null
+packDir: null
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: Startup
+      files:
+        - path: Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/arm/startup_stm32f407xx.s
+        - path: Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
+      folders: []
+    - name: User
+      files:
+        - path: User/demo.c
+        - path: User/main.c
+        - path: User/stm32f4xx_it.c
+      folders: []
+    - name: Drivers
+      files: []
+      folders:
+        - name: SYSTEM
+          files:
+            - path: Drivers/SYSTEM/delay/delay.c
+            - path: Drivers/SYSTEM/usart/usart.c
+            - path: Drivers/SYSTEM/sys/sys.c
+          folders: []
+        - name: STM32F4xx_HAL_Driver
+          files:
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cec.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_crc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cryp.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cryp_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dac_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dcmi.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dcmi_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dfsdm.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma2d.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dsi.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_eth.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_exti.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_flash_ramfunc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_fmpi2c.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_fmpi2c_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_fmpsmbus.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_fmpsmbus_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_hash.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_hash_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_hcd.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2s.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2s_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_irda.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_lptim.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_ltdc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_ltdc_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_mmc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_msp_template.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_nand.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_nor.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pccard.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pcd_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_qspi.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rng.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rtc_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_sai.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_sai_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_sd.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_sdram.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_smartcard.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_smbus.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spdifrx.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_sram.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_usart.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_wwdg.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_adc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_crc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_dac.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_dma.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_dma2d.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_exti.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_fmc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_fmpi2c.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_fsmc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_gpio.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_i2c.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_lptim.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_pwr.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rcc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rng.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_rtc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_sdmmc.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_spi.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_tim.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usart.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c
+            - path: Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_utils.c
+          folders: []
+        - name: BSP
+          files:
+            - path: Drivers/BSP/ATK_MS901M/atk_ms901m.c
+            - path: Drivers/BSP/ATK_MS901M/atk_ms901m_uart.c
+            - path: Drivers/BSP/PWM/pwm.c
+          folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 01c88655735962eeec2f182261efd645
+targets:
+  ATK-MS901M:
+    cppPreprocessAttrs:
+      defineList:
+        - USE_HAL_DRIVER
+        - STM32F407xx
+      incList:
+        - Drivers
+        - User
+        - Drivers/STM32F4xx_HAL_Driver
+        - Drivers/BSP
+        - Drivers/CMSIS
+        - Drivers/SYSTEM
+        - Drivers/SYSTEM/sys
+        - Drivers/CMSIS/Device/ST/STM32F4xx/Include
+        - Drivers/CMSIS/Include
+        - Drivers/STM32F4xx_HAL_Driver/Inc
+        - Drivers/SYSTEM/delay
+        - Drivers/SYSTEM/usart
+        - Drivers/BSP/ATK_MS901M
+        - Drivers/BSP/PWM
+        - .cmsis/include
+        - RTE/_ATK-MS901M
+      libList: []
+    excludeList: []
+    settings: {}
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M4
+        floatingPointHardware: single
+        options:
+          version: 4
+          afterBuildTasks: []
+          asm-compiler:
+            defines: []
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            c99-mode: true
+            one-elf-section-per-function: true
+            optimization: level-0
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: false
+          linker:
+            $outputTaskExcludes:
+              - .bin
+            output-format: elf
+            ro-base: "0x08000000"
+            rw-base: "0x20000000"
+            xo-base: ""
+        scatterFilePath: ""
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x20000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x10000"
+                startAddr: "0x10000000"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x80000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: "null"
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+      STLink:
+        address: "0x8000000"
+        bin: ""
+        elFile: None
+        optionBytes: .eide/atk-ms901m.st.option.bytes.ini
+        otherCmds: ""
+        proType: SWD
+        resetMode: default
+        runAfterProgram: true
+        speed: 4000
+    uploader: STLink
