@@ -81,22 +81,6 @@
 3.  烧录程序到开发板
 4.  使用串口监视器查看调试信息（115200 波特率）
 
-#### 开发环境配置（ESP-IDF）
-
-本项目同时支持 ESP-IDF 开发（如需要）：
-
-- ESP-IDF 6.0：`D:\esp\v6.0\esp-idf`
-- ESP-IDF 5.5：`D:\esp5.5\v5.5\esp-idf`
-
-激活环境：
-```powershell
-# 激活 ESP-IDF 6.0
-& "D:\esp\v6.0\esp-idf\export.ps1"
-
-# 激活 ESP-IDF 5.5
-& "D:\esp5.5\v5.5\esp-idf\export.ps1"
-```
-
 #### 参与贡献
 
 1.  Fork 本仓库
