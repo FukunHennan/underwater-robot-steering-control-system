@@ -1,0 +1,29 @@
+# Build outputs
+build/
+bin/
+obj/
+out/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Keil files
+*.uvguix.*
+*.uvoptx
+*.dep
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Word temporary files
+~$*.docx
