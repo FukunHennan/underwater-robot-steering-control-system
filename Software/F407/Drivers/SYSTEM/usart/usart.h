@@ -1,23 +1,16 @@
 /**
  ****************************************************************************************************
  * @file        usart.h
- * @author      ALIENTEK
- * @version     V1.0
- * @date        2021-10-14
- * @brief       Debug UART initialization (usually USART1) with printf support
- * @license     Copyright (c) 2020-2032, ALIENTEK
+ * @author      chenfukun
+ * @version     V2.0
+ * @date        2026-04-14
+ * @brief       UART initialization for USART1 (debug) and USART2 (Modbus)
+ * @license     Copyright (c) 2025-2026, Graduation Project
  ****************************************************************************************************
  * @attention
  *
- * Test platform: ALIENTEK F407 motor control board
- * Website: www.yuanzige.com
- * Forum: http://www.openedv.com/forum.php
- * Company website: www.alientek.com
- * Taobao: zhengdianyuanzi.tmall.com
- *
- * Modification history
- * V1.0 20211014
- * First release
+ * Project Name: Underwater Intelligent Steering System
+ * Test Platform: STM32F407
  *
  ****************************************************************************************************
  */
@@ -29,40 +22,74 @@
 #include "sys.h"
 
 /*******************************************************************************************************/
-/* UART Configuration 
- * Default configuration is USART1.
- * Note: By modifying the 12 macro definitions below, it can support any one of USART1~UART7.
- */
+/* USART1 Configuration (Debug) */
 
 #define USART_TX_GPIO_PORT              GPIOA
 #define USART_TX_GPIO_PIN               GPIO_PIN_9
 #define USART_TX_GPIO_AF                GPIO_AF7_USART1
-#define USART_TX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)   /* ��������ʱ��ʹ�� */
+#define USART_TX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)
 
 #define USART_RX_GPIO_PORT              GPIOA
 #define USART_RX_GPIO_PIN               GPIO_PIN_10
 #define USART_RX_GPIO_AF                GPIO_AF7_USART1
-#define USART_RX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)   /* ��������ʱ��ʹ�� */
+#define USART_RX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)
 
 #define USART_UX                        USART1
 #define USART_UX_IRQn                   USART1_IRQn
 #define USART_UX_IRQHandler             USART1_IRQHandler
-#define USART_UX_CLK_ENABLE()           do{ __HAL_RCC_USART1_CLK_ENABLE(); }while(0)  /* USART1 ʱ��ʹ�� */
+#define USART_UX_CLK_ENABLE()           do{ __HAL_RCC_USART1_CLK_ENABLE(); }while(0)
+
+/*******************************************************************************************************/
+/* USART2 Configuration (Modbus) */
+
+#define USART2_TX_GPIO_PORT              GPIOA
+#define USART2_TX_GPIO_PIN               GPIO_PIN_2
+#define USART2_TX_GPIO_AF                GPIO_AF7_USART2
+#define USART2_TX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)
+
+#define USART2_RX_GPIO_PORT              GPIOA
+#define USART2_RX_GPIO_PIN               GPIO_PIN_3
+#define USART2_RX_GPIO_AF                GPIO_AF7_USART2
+#define USART2_RX_GPIO_CLK_ENABLE()      do{ __HAL_RCC_GPIOA_CLK_ENABLE(); }while(0)
+
+#define USART2_UX                        USART2
+#define USART2_UX_IRQn                   USART2_IRQn
+#define USART2_UX_IRQHandler             USART2_IRQHandler
+#define USART2_UX_CLK_ENABLE()           do{ __HAL_RCC_USART2_CLK_ENABLE(); }while(0)
 
 /*******************************************************************************************************/
 
-#define USART_REC_LEN   200                     /* �����������ֽ��� 200 */
-#define USART_EN_RX     1                       /* ʹ�ܣ�1��/��ֹ��0������1���� */
-#define RXBUFFERSIZE    1                       /* �����С */
+#define USART_REC_LEN   200                     /* USART1 receive buffer size: 200 bytes */
+#define USART_EN_RX     1                       /* Enable USART1 receive: 1=enable, 0=disable */
+#define RXBUFFERSIZE    1                       /* USART1 HAL receive buffer size */
 
-extern UART_HandleTypeDef g_uart1_handle;       /* UART��� */
+#define USART2_REC_LEN   256                    /* USART2 receive buffer size: 256 bytes */
+#define USART2_EN_RX     1                      /* Enable USART2 receive: 1=enable, 0=disable */
+#define USART2_RXBUFFERSIZE    2                /* USART2 HAL receive buffer size (2 needed for 9-bit word length) */
 
-extern uint8_t  g_usart_rx_buf[USART_REC_LEN];  /* ���ջ���,���USART_REC_LEN���ֽ�.ĩ�ֽ�Ϊ���з� */
-extern uint16_t g_usart_rx_sta;                 /* ����״̬��� */
-extern uint8_t g_rx_buffer[RXBUFFERSIZE];       /* HAL��USART����Buffer */
+/* Modbus RTU Configuration */
+#define MODBUS_BAUDRATE        9600             /* Modbus default baudrate */
+#define MODBUS_PARITY          UART_PARITY_EVEN /* Modbus requires even parity */
+#define MODBUS_STOP_BITS       UART_STOPBITS_1  /* Modbus requires 1 stop bit */
+#define MODBUS_DATA_BITS       UART_WORDLENGTH_8B /* Modbus requires 8 data bits */
 
+/*******************************************************************************************************/
 
-void usart_init(uint32_t baudrate);             /* ���ڳ�ʼ������ */
+extern UART_HandleTypeDef g_uart1_handle;       /* USART1 handle */
+extern uint8_t  g_usart_rx_buf[USART_REC_LEN];  /* USART1 receive buffer */
+extern uint16_t g_usart_rx_sta;                 /* USART1 receive status */
+extern uint8_t g_rx_buffer[RXBUFFERSIZE];       /* USART1 HAL receive buffer */
+
+/* USART2 variables */
+extern UART_HandleTypeDef g_uart2_handle;       /* USART2 handle */
+extern uint8_t  g_usart2_rx_buf[USART2_REC_LEN];  /* USART2 receive buffer */
+extern uint16_t g_usart2_rx_sta;                 /* USART2 receive status */
+extern uint8_t  g_usart2_rx_buffer[USART2_RXBUFFERSIZE];  /* USART2 HAL receive buffer */
+
+/* Function declarations */
+void usart_init(uint32_t baudrate);             /* Initialize USART1 (debug) */
+void usart2_init(uint32_t baudrate);            /* Initialize USART2 (Modbus) */
+void usart2_send_data(uint8_t *data, uint16_t len);  /* Send data via USART2 */
 
 #endif
 

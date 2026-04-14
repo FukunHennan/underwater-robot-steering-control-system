@@ -3,7 +3,8 @@ name: atk_f407
 type: ARM
 deviceName: null
 packDir: null
-srcDirs: []
+srcDirs:
+  - Drivers/BSP/Modbus
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -126,6 +127,8 @@ virtualFolder:
           files:
             - path: Drivers/BSP/ATK_MS901M/atk_ms901m.c
             - path: Drivers/BSP/ATK_MS901M/atk_ms901m_uart.c
+            - path: Drivers/BSP/ADC/adc.c
+            - path: Drivers/BSP/GPIO/gpio.c
             - path: Drivers/BSP/PWM/pwm.c
           folders: []
 dependenceList: []
@@ -141,18 +144,22 @@ targets:
       incList:
         - Drivers
         - User
-        - Drivers/STM32F4xx_HAL_Driver
-        - Drivers/BSP
-        - Drivers/CMSIS
         - Drivers/SYSTEM
         - Drivers/SYSTEM/sys
-        - Drivers/CMSIS/Device/ST/STM32F4xx/Include
-        - Drivers/CMSIS/Include
-        - Drivers/STM32F4xx_HAL_Driver/Inc
         - Drivers/SYSTEM/delay
         - Drivers/SYSTEM/usart
+        - Drivers/SYSTEM/usart2
+        - Drivers/CMSIS
+        - Drivers/CMSIS/Device/ST/STM32F4xx/Include
+        - Drivers/CMSIS/Include
+        - Drivers/STM32F4xx_HAL_Driver
+        - Drivers/STM32F4xx_HAL_Driver/Inc
+        - Drivers/BSP
         - Drivers/BSP/ATK_MS901M
+        - Drivers/BSP/ADC
+        - Drivers/BSP/GPIO
         - Drivers/BSP/PWM
+        - Drivers/BSP/Modbus
         - .cmsis/include
         - RTE/_ATK-MS901M
       libList: []
@@ -169,7 +176,12 @@ targets:
           afterBuildTasks: []
           asm-compiler:
             defines: []
-          beforeBuildTasks: []
+          beforeBuildTasks:
+            - name: Inject Modbus Sources
+              abortAfterFailed: true
+              command: powershell -ExecutionPolicy Bypass -Command "$p='${OutDir}\\builder.params'; $c=[System.IO.File]::ReadAllText($p,[System.Text.Encoding]::UTF8); if($c -notmatch 'Modbus/mb\\.c'){$c=$c.Replace('\"User/stm32f4xx_it.c\"','\"User/stm32f4xx_it.c\",\"Drivers/BSP/Modbus/mb.c\",\"Drivers/BSP/Modbus/mbcrc.c\",\"Drivers/BSP/Modbus/mbfuncholding.c\",\"Drivers/BSP/Modbus/mbrtu.c\",\"Drivers/BSP/Modbus/mbutils.c\",\"Drivers/BSP/Modbus/modbus.c\",\"Drivers/BSP/Modbus/port.c\"');[System.IO.File]::WriteAllText($p,$c,[System.Text.Encoding]::UTF8)}"
+              disable: false
+              stopBuildAfterFailed: true
           c/cpp-compiler:
             CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
             C_FLAGS: --diag_suppress=1 --diag_suppress=1295

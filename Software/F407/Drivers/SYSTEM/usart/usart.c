@@ -77,11 +77,16 @@ uint16_t g_usart_rx_sta = 0;
 
 uint8_t g_rx_buffer[RXBUFFERSIZE];                  /* Temporary receive buffer used by HAL */
 
-UART_HandleTypeDef g_uart1_handle;                  /* UART handle */
+UART_HandleTypeDef g_uart1_handle;                  /* USART1 handle */
 
+/* USART2 variables */
+UART_HandleTypeDef g_uart2_handle;                  /* USART2 handle */
+uint8_t  g_usart2_rx_buf[USART2_REC_LEN];           /* USART2 receive buffer */
+uint16_t g_usart2_rx_sta = 0;                       /* USART2 receive status */
+uint8_t  g_usart2_rx_buffer[USART2_RXBUFFERSIZE];   /* USART2 HAL receive buffer */
 
 /**
- * @brief       Initialize UART
+ * @brief       Initialize USART1 for debug
  * @param       baudrate: Baud rate, can be set to any desired value
  * @note        Note: Before initializing the UART, make sure the clock source is correct, otherwise the baud rate error may be large.
  *              The USART clock source has been configured in sys_stm32_clock_init().
@@ -96,10 +101,47 @@ void usart_init(uint32_t baudrate)
     g_uart1_handle.Init.Parity = UART_PARITY_NONE;              /* No parity bit */
     g_uart1_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;        /* No hardware flow control */
     g_uart1_handle.Init.Mode = UART_MODE_TX_RX;                 /* Transmit and receive mode */
-    HAL_UART_Init(&g_uart1_handle);                             /* Initialize UART1 using HAL_UART_Init() */
+    HAL_UART_Init(&g_uart1_handle);                             /* Initialize USART1 using HAL_UART_Init() */
     
     /* Enable UART receive interrupt, set the UART_IT_RXNE flag, and use the receive buffer and receive completion interrupt callback function */
     HAL_UART_Receive_IT(&g_uart1_handle, (uint8_t *)g_rx_buffer, RXBUFFERSIZE);
+}
+
+/**
+ * @brief       Initialize USART2 for Modbus
+ * @param       baudrate: Baudrate
+ * @retval      None
+ */
+void usart2_init(uint32_t baudrate)
+{
+    /* Initialize UART2 */
+    g_uart2_handle.Instance = USART2;
+    g_uart2_handle.Init.BaudRate = baudrate;
+    g_uart2_handle.Init.WordLength = UART_WORDLENGTH_8B;
+    g_uart2_handle.Init.StopBits = UART_STOPBITS_1;
+    g_uart2_handle.Init.Parity = UART_PARITY_EVEN;
+    g_uart2_handle.Init.Mode = UART_MODE_TX_RX;
+    g_uart2_handle.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    g_uart2_handle.Init.OverSampling = UART_OVERSAMPLING_16;
+    
+    /* Initialize UART */
+    if (HAL_UART_Init(&g_uart2_handle) != HAL_OK) {
+        while (1);
+    }
+    
+    /* Enable receive interrupt */
+    HAL_UART_Receive_IT(&g_uart2_handle, (uint8_t *)g_usart2_rx_buffer, USART2_RXBUFFERSIZE);
+}
+
+/**
+ * @brief       Send data via USART2
+ * @param       data: Data to send
+ * @param       len: Data length
+ * @retval      None
+ */
+void usart2_send_data(uint8_t *data, uint16_t len)
+{
+    HAL_UART_Transmit(&g_uart2_handle, data, len, 1000);
 }
 
 /**
@@ -133,8 +175,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
         HAL_NVIC_EnableIRQ(USART_UX_IRQn);                      /* Enable USART1 interrupt channel */
         HAL_NVIC_SetPriority(USART_UX_IRQn, 3, 3);              /* Set priority level 3, sub-priority 3 */
 #endif
-    }
-    else if (huart->Instance == ATK_MS901M_UART_INTERFACE)              /* If it is ATK-MS901M UART */
+    } else if (huart->Instance == ATK_MS901M_UART_INTERFACE)              /* If it is ATK-MS901M UART */
     {
         ATK_MS901M_UART_TX_GPIO_CLK_ENABLE();                           /* Enable UART TX pin clock */
         ATK_MS901M_UART_RX_GPIO_CLK_ENABLE();                           /* Enable UART RX pin clock */
@@ -158,6 +199,30 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
         HAL_NVIC_EnableIRQ(ATK_MS901M_UART_IRQn);                       /* Enable UART interrupt channel */
         
         __HAL_UART_ENABLE_IT(huart, UART_IT_RXNE);                      /* Enable UART receive interrupt */
+    }
+    else if (huart->Instance == USART2)                                  /* If it is USART2 (Modbus) */
+    {
+        __HAL_RCC_USART2_CLK_ENABLE();                                 /* Enable USART2 clock */
+        __HAL_RCC_GPIOA_CLK_ENABLE();                                  /* Enable GPIOA clock */
+        
+        /* Configure PA2 (USART2_TX) */
+        gpio_init_struct.Pin = GPIO_PIN_2;
+        gpio_init_struct.Mode = GPIO_MODE_AF_PP;
+        gpio_init_struct.Pull = GPIO_PULLUP;
+        gpio_init_struct.Speed = GPIO_SPEED_FREQ_HIGH;
+        gpio_init_struct.Alternate = GPIO_AF7_USART2;
+        HAL_GPIO_Init(GPIOA, &gpio_init_struct);
+        
+        /* Configure PA3 (USART2_RX) */
+        gpio_init_struct.Pin = GPIO_PIN_3;
+        gpio_init_struct.Mode = GPIO_MODE_AF_PP;
+        gpio_init_struct.Pull = GPIO_PULLUP;
+        gpio_init_struct.Speed = GPIO_SPEED_FREQ_HIGH;
+        gpio_init_struct.Alternate = GPIO_AF7_USART2;
+        HAL_GPIO_Init(GPIOA, &gpio_init_struct);
+        
+        HAL_NVIC_SetPriority(USART2_IRQn, 3, 3);                      /* Set priority */
+        HAL_NVIC_EnableIRQ(USART2_IRQn);                              /* Enable interrupt */
     }
 }
 
@@ -201,6 +266,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             }
         }
     }
+    /* USART2 (Modbus) is handled by direct register access in USART2_IRQHandler */
 }
 
 /**
@@ -245,6 +311,36 @@ void USART_UX_IRQHandler(void)
     OSIntExit();
 #endif
 
+}
+
+/**
+ * @brief       USART2 interrupt handler
+ * @param       None
+ * @retval      None
+ */
+void USART2_IRQHandler(void)
+{
+    uint32_t sr = USART2->SR;
+    volatile uint32_t dr;
+
+    /* Check for errors first */
+    if (sr & (USART_SR_PE | USART_SR_FE | USART_SR_ORE | USART_SR_NE))
+    {
+        dr = USART2->DR;  /* Read DR to clear error flags */
+        (void)dr;
+        printf("[ERR]SR=0x%04X\r\n", (unsigned int)sr);
+        return;
+    }
+
+    /* RXNE: new byte available */
+    if (sr & USART_SR_RXNE)
+    {
+        uint8_t data = (uint8_t)(USART2->DR & 0xFF);
+        if (g_usart2_rx_sta < USART2_REC_LEN - 1)
+        {
+            g_usart2_rx_buf[g_usart2_rx_sta++] = data;
+        }
+    }
 }
 
 #endif

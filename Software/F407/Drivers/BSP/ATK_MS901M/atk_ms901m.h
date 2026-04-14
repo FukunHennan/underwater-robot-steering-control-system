@@ -1,19 +1,16 @@
 /**
  ****************************************************************************************************
  * @file        atk_ms901m.h
- * @author      ALIENTEK
+ * @author      chenfukun
  * @version     V1.0
- * @date        2022-06-21
- * @brief       ATK-MS901M module header file
- * @license     Copyright (c) 2020-2032, ALIENTEK
+ * @date        2026-04-14
+ * @brief       水下智能转向系统 - ATK-MS901M 模块头文件
+ * @license     Copyright (c) 2025-2026, 毕业设计项目
  ****************************************************************************************************
  * @attention
  *
- * Test platform: ALIENTEK F407 motor control board
- * Website: www.yuanzige.com
- * Forum: www.openedv.com
- * Company website: www.alientek.com
- * Taobao: openedv.taobao.com
+ * 项目名称: 水下智能转向系统
+ * 实验平台: STM32F407
  *
  ****************************************************************************************************
  */

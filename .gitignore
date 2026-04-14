@@ -3,6 +3,22 @@ build/
 bin/
 obj/
 out/
+Output/
+Software/Output/
+Software/F407/build/
+*.o
+*.d
+*.lst
+*.hex
+*.bin
+*.map
+*.axf
+*.elf
+*.htm
+*.lnp
+*.sct
+*.crf
+*.dep
 
 # IDE files
 .vscode/
@@ -10,11 +26,11 @@ out/
 *.swp
 *.swo
 *~
+*.bak
 
 # Keil files
 *.uvguix.*
 *.uvoptx
-*.dep
 
 # Temporary files
 *.tmp

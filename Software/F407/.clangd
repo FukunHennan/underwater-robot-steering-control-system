@@ -46,6 +46,7 @@ CompileFlags:
     - -D"__OPTIMISE_SPACE=1"
     - -D"__OPT_SMALL_ASSERT=1"
     - -D"__OPTIMISE_LEVEL=2"
+    - -I"null\include"
   Remove: []
   CompilationDatabase: ./build/ATK-MS901M
 Diagnostics:
