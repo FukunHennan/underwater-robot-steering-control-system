@@ -1,0 +1,48 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    TITLE["Modbus RTU 保持寄存器映射\nSlave Addr: 0x01 | 9600 8N1 | 共58个寄存器"]
+
+    TITLE --> SYS
+    TITLE --> ATT
+    TITLE --> PWM
+    TITLE --> ADC_R
+
+    subgraph SYS["系统寄存器 0x0000~0x0005 (6个, 只读为主)"]
+        direction LR
+        S0["0x0000\nDEVICE_ID\n0x0407\nR"]
+        S1["0x0001\nFW_VERSION\n0x0300\nR"]
+        S2["0x0002\nRUN_MODE\n0/1/2\nR/W"]
+        S3["0x0003\nFAULT_CODE\n位图\nR"]
+        S4["0x0004\nSYS_TICK_L\nms低16位\nR"]
+        S5["0x0005\nSYS_TICK_H\nms高16位\nR"]
+    end
+
+    subgraph ATT["姿态寄存器 0x0010~0x001B (12个, IEEE754 float, 只读)"]
+        direction LR
+        A0["0x0010~11\nROLL\nfloat °"]
+        A1["0x0012~13\nPITCH\nfloat °"]
+        A2["0x0014~15\nYAW\nfloat °"]
+        A3["0x0016~17\nGYRO_X\nfloat °/s"]
+        A4["0x0018~19\nGYRO_Y\nfloat °/s"]
+        A5["0x001A~1B\nGYRO_Z\nfloat °/s"]
+    end
+
+    subgraph PWM["PWM控制寄存器 0x0020~0x0029 (10个, 可读写)"]
+        direction LR
+        P0["0x0020~27\nSERVO1~8\n500~2500μs"]
+        P1["0x0028~29\nLED1~2\n0~1000"]
+    end
+
+    subgraph ADC_R["ADC采集寄存器 0x0030~0x0039 (10个, 只读)"]
+        direction LR
+        D0["0x0030~33\nANALOG1~4\nint16 模拟量"]
+        D1["0x0034\nVOLTAGE\nuint16 ×100V"]
+        D2["0x0035~39\nADC_RAW0~4\n12bit原始值"]
+    end

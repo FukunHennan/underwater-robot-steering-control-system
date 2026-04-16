@@ -1,0 +1,51 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    subgraph BROWSER["浏览器 (Chrome/Edge)"]
+        direction TB
+        UI["React 仪表盘 UI\n系统状态 | 姿态3D | PWM控制\nADC数据 | 通信日志"]
+        CLIENT["ModbusClient 类\n事务队列 | 帧间延时15ms"]
+        CRC["CRC16 校验模块\n查表法 256项"]
+        SERIAL["Web Serial API\nnavigator.serial"]
+
+        UI -->|"读/写请求"| CLIENT
+        CLIENT -->|"构建帧 + CRC"| CRC
+        CRC -->|"Uint8Array"| SERIAL
+        SERIAL -->|"响应帧"| CRC
+        CRC -->|"校验 + 解析"| CLIENT
+        CLIENT -->|"更新数据"| UI
+    end
+
+    subgraph QUEUE["事务队列机制"]
+        direction LR
+        Q1["请求入队\n_enqueue()"]
+        Q2["等待上一事务完成\nasync mutex"]
+        Q3["发送请求帧\nwriter.write()"]
+        Q4["等待响应\nreadWithTimeout()"]
+        Q5["帧间延时\n15ms sleep"]
+        Q1 --> Q2 --> Q3 --> Q4 --> Q5
+    end
+
+    subgraph USB["USB 串口"]
+        CABLE["USB-TTL\n转换器"]
+    end
+
+    subgraph STM32["STM32F407 从站"]
+        MB["FreeModbus\neMBPoll()"]
+        REG["寄存器数组\n58个 uint16"]
+        HW["硬件外设\nADC/PWM/IMU"]
+        MB --> REG
+        REG --> HW
+    end
+
+    SERIAL <-->|"TX/RX\n9600 8N1"| CABLE
+    CABLE <-->|"USART2\nPA2/PA3"| MB
+
+    style BROWSER fill:#E3F2FD,stroke:#1565C0,color:#000
+    style STM32 fill:#E8F5E9,stroke:#2E7D32,color:#000

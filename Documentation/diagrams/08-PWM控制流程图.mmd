@@ -1,0 +1,48 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    START(["Modbus 写入请求\nFC06 / FC10"]) --> CB["eMBRegHoldingCB()\nmode = MB_REG_WRITE"]
+    CB --> CHECK{is_reg_writable?}
+    CHECK -->|"否"| ERR["返回 MB_ENOREG\n异常码 0x02"]
+    CHECK -->|"是"| WRITE["写入寄存器数组\ng_modbus_registers[addr] = value"]
+    WRITE --> APPLY["apply_register(addr)"]
+
+    APPLY --> IS_SERVO{addr 在\n0x0020~0x0027?}
+    IS_SERVO -->|"是"| SERVO_DUTY["pwm_set_duty(\nSERVO_1 + offset,\nvalue)"]
+    SERVO_DUTY --> TIM_SERVO["__HAL_TIM_SET_COMPARE()\nTIM3/TIM4/TIM8"]
+    TIM_SERVO --> PWM_OUT_S["舵机输出\n500~2500μs @ 50Hz"]
+
+    IS_SERVO -->|"否"| IS_LED{addr 在\n0x0028~0x0029?}
+    IS_LED -->|"是"| LED_DUTY["pwm_set_duty(\nLED_1/LED_2,\nvalue)"]
+    LED_DUTY --> TIM_LED["__HAL_TIM_SET_COMPARE()\nTIM1"]
+    TIM_LED --> PWM_OUT_L["LED输出\n占空比 0~1000"]
+
+    IS_LED -->|"否"| IS_MODE{addr == 0x0002\nRUN_MODE?}
+    IS_MODE -->|"是"| MODE["更新运行模式\n0=待机 1=手动 2=自动"]
+    IS_MODE -->|"否"| DONE
+
+    PWM_OUT_S --> DONE
+    PWM_OUT_L --> DONE
+    MODE --> DONE
+
+    DONE(["返回 MB_ENOERR\n回显响应帧"])
+
+    subgraph TIM_MAP["定时器通道映射"]
+        direction LR
+        M1["Servo1→TIM4_CH2 PD13"]
+        M2["Servo2→TIM4_CH4 PD15"]
+        M3["Servo3→TIM4_CH1 PD12"]
+        M4["Servo4→TIM4_CH3 PD14"]
+        M5["Servo5→TIM8_CH1 PC6"]
+        M6["Servo6→TIM8_CH2 PC7"]
+        M7["Servo7→TIM3_CH3 PB0"]
+        M8["Servo8→TIM3_CH4 PB1"]
+        M9["LED1→TIM1_CH1 PE9"]
+        M10["LED2→TIM1_CH2 PE11"]
+    end

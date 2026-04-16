@@ -96,20 +96,20 @@ void modbus_update_sensors(void)
     g_modbus_registers[REG_SYS_TICK_L] = (uint16_t)(tick & 0xFFFF);
     g_modbus_registers[REG_SYS_TICK_H] = (uint16_t)(tick >> 16);
 
-    /* ADC temperatures: x10 deg-C */
-    g_modbus_registers[REG_TEMP1] = (uint16_t)(int16_t)(adc_get_temperature(ADC_CH_TEMP1) * 10.0f);
-    g_modbus_registers[REG_TEMP2] = (uint16_t)(int16_t)(adc_get_temperature(ADC_CH_TEMP2) * 10.0f);
-    g_modbus_registers[REG_TEMP3] = (uint16_t)(int16_t)(adc_get_temperature(ADC_CH_TEMP3) * 10.0f);
-    g_modbus_registers[REG_TEMP4] = (uint16_t)(int16_t)(adc_get_temperature(ADC_CH_TEMP4) * 10.0f);
+    /* ADC analog inputs */
+    g_modbus_registers[REG_ANALOG1] = adc_get_analog_value(ADC_CH_ANALOG1);
+    g_modbus_registers[REG_ANALOG2] = adc_get_analog_value(ADC_CH_ANALOG2);
+    g_modbus_registers[REG_ANALOG3] = adc_get_analog_value(ADC_CH_ANALOG3);
+    g_modbus_registers[REG_ANALOG4] = adc_get_analog_value(ADC_CH_ANALOG4);
 
     /* ADC power voltage: x100 V */
     g_modbus_registers[REG_VOLTAGE] = (uint16_t)(adc_get_power_voltage() * 100.0f);
 
     /* ADC raw values */
-    g_modbus_registers[REG_ADC_RAW0] = adc_get_channel_value(ADC_CH_TEMP1);
-    g_modbus_registers[REG_ADC_RAW1] = adc_get_channel_value(ADC_CH_TEMP2);
-    g_modbus_registers[REG_ADC_RAW2] = adc_get_channel_value(ADC_CH_TEMP3);
-    g_modbus_registers[REG_ADC_RAW3] = adc_get_channel_value(ADC_CH_TEMP4);
+    g_modbus_registers[REG_ADC_RAW0] = adc_get_channel_value(ADC_CH_ANALOG1);
+    g_modbus_registers[REG_ADC_RAW1] = adc_get_channel_value(ADC_CH_ANALOG2);
+    g_modbus_registers[REG_ADC_RAW2] = adc_get_channel_value(ADC_CH_ANALOG3);
+    g_modbus_registers[REG_ADC_RAW3] = adc_get_channel_value(ADC_CH_ANALOG4);
     g_modbus_registers[REG_ADC_RAW4] = adc_get_channel_value(ADC_CH_VOLTAGE);
 }
 

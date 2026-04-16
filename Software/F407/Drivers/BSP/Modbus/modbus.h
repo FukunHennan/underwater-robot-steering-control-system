@@ -58,10 +58,10 @@
  *  0x0029 LED2           R/W  PWM duty (0-1000)
  *
  *  ADC Sensors (0x0030 - 0x0039)
- *  0x0030 TEMP1          R    x10 deg-C (int16)
- *  0x0031 TEMP2          R    x10 deg-C (int16)
- *  0x0032 TEMP3          R    x10 deg-C (int16)
- *  0x0033 TEMP4          R    x10 deg-C (int16)
+ *  0x0030 ANALOG1        R    Analog input CH0 (uint16)
+ *  0x0031 ANALOG2        R    Analog input CH1 (uint16)
+ *  0x0032 ANALOG3        R    Analog input CH2 (uint16)
+ *  0x0033 ANALOG4        R    Analog input CH3 (uint16)
  *  0x0034 VOLTAGE        R    x100 V
  *  0x0035 ADC_RAW0       R    12-bit raw
  *  0x0036 ADC_RAW1       R    12-bit raw
@@ -99,10 +99,10 @@
 #define REG_LED2              41
 
 /* ADC sensor registers: 0x0030 - 0x0039 */
-#define REG_TEMP1             48
-#define REG_TEMP2             49
-#define REG_TEMP3             50
-#define REG_TEMP4             51
+#define REG_ANALOG1           48
+#define REG_ANALOG2           49
+#define REG_ANALOG3           50
+#define REG_ANALOG4           51
 #define REG_VOLTAGE           52
 #define REG_ADC_RAW0          53
 #define REG_ADC_RAW1          54

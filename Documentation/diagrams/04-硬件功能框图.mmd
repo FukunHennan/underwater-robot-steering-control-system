@@ -1,0 +1,79 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+    secondaryColor: "#F0F4F8"
+---
+flowchart LR
+    subgraph POWER["电源模块"]
+        direction TB
+        VIN["外部电源输入"] --> LM2596["LM2596S-ADJ\n降压模块"]
+        VIN --> AMS1117["AMS1117-3.3\n3.3V 稳压"]
+        LM2596 --> VPWM["舵机/电调\n供电"]
+        AMS1117 --> V33["3.3V\n主控/传感器"]
+        VIN --> VDET_C["分压电阻\n+ LM321"]
+    end
+
+    subgraph SENSOR["传感器模块"]
+        direction TB
+        MS901M_S["ATK-MS901M\n九轴IMU"]
+        AIN1["模拟输入 ×4\n信号采集通道"]
+        VDET_S["电压检测\nPA1\n分压比 3:1"]
+    end
+
+    subgraph STM32["STM32F407VET6 主控"]
+        direction TB
+        subgraph UART_G["串口"]
+            U1["USART1\nPA9/PA10\n调试 115200"]
+            U2["USART2\nPA2/PA3\nModbus 9600"]
+            U3["USART3\nPB10/PB11\nMS901M 115200"]
+        end
+        subgraph ADC_G["ADC"]
+            A1["CH0: ADC1_IN13 PC3\nCH1: ADC1_IN11 PC1\nCH2: ADC1_IN12 PC2\nCH3: ADC1_IN10 PC0\nCH4: ADC1_IN1 PA1"]
+        end
+        subgraph TIM_G["定时器 PWM"]
+            T4["TIM4\nPD12/PD13\nPD14/PD15\n舵机1~4"]
+            T8["TIM8\nPC6/PC7\n舵机5~6"]
+            T3["TIM3\nPB0/PB1\n舵机7~8"]
+            T1["TIM1\nPE9/PE11\nLED1~2"]
+        end
+        subgraph GPIO_G["GPIO"]
+            GP["PB12 / PE6\nPE5 / PC4"]
+        end
+    end
+
+    subgraph ACTUATOR["执行器模块"]
+        direction TB
+        S18["舵机/电调 ×8\n50Hz PWM\n500~2500μs"]
+        LED12["LED灯板 ×2\nPWM调光\n0~1000"]
+    end
+
+    subgraph COMM["通信接口"]
+        direction TB
+        DBG["调试终端\n(PC串口助手)"]
+        MODBUS["Modbus 主站\n(上位机/PLC)"]
+    end
+
+    %% Sensor connections
+    MS901M_S <-->|"UART"| U3
+    AIN1 -->|"模拟"| A1
+    VDET_S -->|"模拟"| A1
+    VDET_C --> VDET_S
+
+    %% Actuator connections
+    T4 -->|"PWM"| S18
+    T8 -->|"PWM"| S18
+    T3 -->|"PWM"| S18
+    T1 -->|"PWM"| LED12
+
+    %% Communication
+    U1 -->|"TX"| DBG
+    U2 <-->|"RS-485/TTL"| MODBUS
+
+    %% Power
+    V33 -.->|"3.3V"| STM32
+    V33 -.->|"3.3V"| SENSOR
+    VPWM -.->|"电源"| ACTUATOR

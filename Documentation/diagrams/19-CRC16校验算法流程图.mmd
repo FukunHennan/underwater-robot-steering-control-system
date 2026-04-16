@@ -1,0 +1,28 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    START(["CRC16 校验计算"])
+    INIT["初始化 CRC = 0xFFFF"]
+    LOOP{{"遍历数据\n每个字节 data[i]"}}
+    XOR["index = (CRC ⊕ data[i]) & 0xFF"]
+    SHIFT["CRC = (CRC >> 8) ⊕ CRC_TABLE[index]"]
+    DONE{{"遍历完成?"}}
+    RESULT["CRC16 结果\n低字节在前 (Little-Endian)"]
+    APPEND["追加到帧尾\n[CRC_Lo] [CRC_Hi]"]
+
+    subgraph TABLE["CRC 查找表 (256 项)"]
+        direction LR
+        GEN["生成规则:\ncrc = i\n循环8次:\n  if (crc & 1)\n    crc = (crc>>1) ⊕ 0xA001\n  else\n    crc = crc >> 1"]
+        POLY["生成多项式:\n0xA001\n(0x8005 的位反转)"]
+    end
+
+    START --> INIT --> LOOP
+    LOOP --> XOR --> SHIFT --> DONE
+    DONE -->|"否"| LOOP
+    DONE -->|"是"| RESULT --> APPEND

@@ -13,8 +13,7 @@
  * 实验平台: STM32F407
  *
  * 硬件电路说明:
- *   - 4个 NTC 温度传感器 (ADC-R1~ADC-R4)
- *   - 每个传感器配 10K 上拉电阻 (R42~R45)
+ *   - 4路模拟信号输入 (ADC-R1~ADC-R4)
  *   - LM324 四运放作为电压跟随器，提高输入阻抗
  *
  ****************************************************************************************************
@@ -22,17 +21,16 @@
 
 #include "adc.h"
 #include "delay.h"
-#include <math.h>
 
 /* ADC 句柄 */
 ADC_HandleTypeDef g_adc1_handle;
 
 /* ADC 通道对应关系表 - 与电路图一致: ADC-R1~ADC-R4 */
 static const uint32_t g_adc_channel_table[ADC_CHANNEL_COUNT] = {
-    ADC_CHANNEL_13,  /* ADC-R1 (Temperature1) - PC3 */
-    ADC_CHANNEL_11,  /* ADC-R2 (Temperature2) - PC1 */
-    ADC_CHANNEL_12,  /* ADC-R3 (Temperature3) - PC2 */
-    ADC_CHANNEL_10,  /* ADC-R4 (Temperature4) - PC0 */
+    ADC_CHANNEL_13,  /* ADC-R1 (Analog1) - PC3 */
+    ADC_CHANNEL_11,  /* ADC-R2 (Analog2) - PC1 */
+    ADC_CHANNEL_12,  /* ADC-R3 (Analog3) - PC2 */
+    ADC_CHANNEL_10,  /* ADC-R4 (Analog4) - PC0 */
     ADC_CHANNEL_1    /* Voltage - PA1 */
 };
 
@@ -67,10 +65,10 @@ void adc_init(void)
     __HAL_RCC_GPIOA_CLK_ENABLE();
 
     /* 配置 GPIO */
-    adc_gpio_config(GPIOC, GPIO_PIN_0);  /* PC0 - Temperature4 */
-    adc_gpio_config(GPIOC, GPIO_PIN_1);  /* PC1 - Temperature2 */
-    adc_gpio_config(GPIOC, GPIO_PIN_2);  /* PC2 - Temperature3 */
-    adc_gpio_config(GPIOC, GPIO_PIN_3);  /* PC3 - Temperature1 */
+    adc_gpio_config(GPIOC, GPIO_PIN_0);  /* PC0 - Analog4 */
+    adc_gpio_config(GPIOC, GPIO_PIN_1);  /* PC1 - Analog2 */
+    adc_gpio_config(GPIOC, GPIO_PIN_2);  /* PC2 - Analog3 */
+    adc_gpio_config(GPIOC, GPIO_PIN_3);  /* PC3 - Analog1 */
     adc_gpio_config(GPIOA, GPIO_PIN_1);  /* PA1 - Voltage */
 
     /* 配置 ADC */
@@ -168,37 +166,17 @@ float adc_get_voltage(uint8_t ch)
 }
 
 /**
- * @brief       获取温度值（基于 NTC 热敏电阻）
- * @param       ch: 通道编号 (0-3，对应温度传感器1-4)
- * @retval      温度值 (°C)
+ * @brief       获取模拟输入通道的采样值（10次平均）
+ * @param       ch: 通道编号 (0-3，对应模拟输入通道1-4)
+ * @retval      ADC 平均值 (0-4095)
  */
-float adc_get_temperature(uint8_t ch)
+uint16_t adc_get_analog_value(uint8_t ch)
 {
-    float voltage;
-    float ntc_resistance;
-    float temp_kelvin;
-    float temp_celsius;
-    const float t0_kelvin = 298.15f; /* 25°C in Kelvin */
-
-    if (ch > ADC_CH_TEMP4) {
-        return 0.0f;
+    if (ch > ADC_CH_ANALOG4) {
+        return 0;
     }
 
-    /* 读取电压 */
-    voltage = adc_get_voltage(ch);
-
-    /* 计算 NTC 电阻值 */
-    if (voltage > 0.01f && voltage < (ADC_REF_VOLTAGE - 0.01f)) {
-        ntc_resistance = ADC_PULLUP_RESISTOR * voltage / (ADC_REF_VOLTAGE - voltage);
-
-        /* 使用 B 方程计算温度 */
-        temp_kelvin = 1.0f / (1.0f / t0_kelvin + (1.0f / ADC_NTC_B_VALUE) * logf(ntc_resistance / ADC_NTC_R25));
-        temp_celsius = temp_kelvin - 273.15f;
-
-        return temp_celsius;
-    }
-
-    return 0.0f;
+    return adc_get_channel_average(ch, 10);
 }
 
 /**

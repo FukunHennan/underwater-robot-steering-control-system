@@ -1,0 +1,61 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    subgraph FC03["FC03 读保持寄存器 — 请求帧 (8 字节)"]
+        direction LR
+        R1["从站地址\n0x01\n1字节"]
+        R2["功能码\n0x03\n1字节"]
+        R3["起始地址\nHi | Lo\n2字节"]
+        R4["寄存器数\nHi | Lo\n2字节"]
+        R5["CRC16\nLo | Hi\n2字节"]
+        R1 --- R2 --- R3 --- R4 --- R5
+    end
+
+    subgraph FC03R["FC03 读保持寄存器 — 响应帧 (3+2N 字节)"]
+        direction LR
+        A1["从站地址\n0x01\n1字节"]
+        A2["功能码\n0x03\n1字节"]
+        A3["字节数\n2×N\n1字节"]
+        A4["数据\nHi|Lo × N\n2N字节"]
+        A5["CRC16\nLo | Hi\n2字节"]
+        A1 --- A2 --- A3 --- A4 --- A5
+    end
+
+    subgraph FC06["FC06 写单个寄存器 — 请求帧 (8 字节)"]
+        direction LR
+        W1["从站地址\n0x01\n1字节"]
+        W2["功能码\n0x06\n1字节"]
+        W3["寄存器地址\nHi | Lo\n2字节"]
+        W4["写入值\nHi | Lo\n2字节"]
+        W5["CRC16\nLo | Hi\n2字节"]
+        W1 --- W2 --- W3 --- W4 --- W5
+    end
+
+    subgraph FC06R["FC06 写单个寄存器 — 响应帧 (原样回显)"]
+        direction LR
+        E1["从站地址\n0x01"]
+        E2["功能码\n0x06"]
+        E3["寄存器地址\nHi | Lo"]
+        E4["写入值\nHi | Lo"]
+        E5["CRC16\nLo | Hi"]
+        E1 --- E2 --- E3 --- E4 --- E5
+    end
+
+    subgraph ERR["异常响应帧 (5 字节)"]
+        direction LR
+        X1["从站地址\n0x01\n1字节"]
+        X2["错误码\n功能码+0x80\n1字节"]
+        X3["异常码\n0x01/0x02/0x03\n1字节"]
+        X4["CRC16\nLo | Hi\n2字节"]
+        X1 --- X2 --- X3 --- X4
+    end
+
+    FC03 --> FC03R
+    FC06 --> FC06R
+    FC06 -.->|"写只读寄存器"| ERR

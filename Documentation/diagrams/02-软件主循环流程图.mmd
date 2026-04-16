@@ -1,0 +1,44 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    primaryBorderColor: "#2C5F8A"
+    lineColor: "#555"
+    secondaryColor: "#FFF3E0"
+    tertiaryColor: "#E8F5E9"
+---
+flowchart TD
+    START([系统上电]) --> HAL_INIT["HAL_Init()\n初始化HAL库"]
+    HAL_INIT --> CLK["sys_stm32_clock_init()\n配置系统时钟 168MHz"]
+    CLK --> DELAY["delay_init(168)\n初始化延时函数"]
+    DELAY --> UART_DBG["usart_init(115200)\n初始化调试串口 USART1"]
+    UART_DBG --> SHOW["show_mesg()\n打印系统信息"]
+    SHOW --> DEMO["demo_run()\n进入主函数"]
+
+    DEMO --> ADC_INIT["adc_init()\nADC1 初始化\n4路模拟输入 + 1路电压检测"]
+    ADC_INIT --> PWM_INIT["pwm_init(19999, 83)\nPWM 初始化\n50Hz, 10通道"]
+    PWM_INIT --> MS901M_INIT{"atk_ms901m_init(115200)\nMS901M 初始化"}
+    MS901M_INIT -->|"成功"| MB_INIT["modbus_init()\nFreeModbus 初始化\nAddr=0x01, 9600, 8N1"]
+    MS901M_INIT -->|"失败(传感器未连接)"| MB_INIT
+
+    MB_INIT --> READY(["✅ SYSTEM READY"])
+    READY --> LOOP_START{{"主循环 while(1)"}}
+
+    LOOP_START --> READ_ATT["读取 MS901M 姿态\natk_ms901m_get_attitude()\n超时: 5ms"]
+    READ_ATT --> ATT_OK{读取成功?}
+    ATT_OK -->|"是"| SET_ATT["写入姿态浮点寄存器\nmodbus_set_register_float()\nROLL/PITCH/YAW"]
+    ATT_OK -->|"否"| READ_GYRO
+    SET_ATT --> READ_GYRO
+
+    READ_GYRO["读取 MS901M 陀螺仪\natk_ms901m_get_gyro()\n超时: 5ms"]
+    READ_GYRO --> GYRO_OK{读取成功?}
+    GYRO_OK -->|"是"| SET_GYRO["写入陀螺仪浮点寄存器\nGYRO_X/Y/Z"]
+    GYRO_OK -->|"否"| MB_PROC
+    SET_GYRO --> MB_PROC
+
+    MB_PROC --> MB_UPDATE["modbus_update_sensors()\n更新模拟量/电压 & 系统时钟寄存器"]
+    MB_UPDATE --> MB_POLL["eMBPoll()\n处理 Modbus 请求"]
+    MB_POLL --> DELAY_5["delay_ms(5)\n循环延时"]
+    DELAY_5 --> LOOP_START

@@ -1,0 +1,36 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    REQ(["收到写寄存器请求\nFC06 / FC10"])
+    CHECK_ADDR["获取目标寄存器地址\nusAddress"]
+
+    CHECK_ADDR --> IS_RUN{"addr == RUN_MODE\n(0x0002)?"}
+    IS_RUN -->|"是"| WRITE_OK
+
+    IS_RUN -->|"否"| IS_PWM{"addr ∈ [SERVO1..LED2]\n(0x0020~0x0029)?"}
+    IS_PWM -->|"是"| WRITE_OK
+    IS_PWM -->|"否"| REJECT
+
+    WRITE_OK["✅ 允许写入\ng_modbus_registers[addr] = value"]
+    WRITE_OK --> APPLY{"需要执行硬件?"}
+
+    APPLY -->|"SERVO1~8"| PWM_SET["pwm_set_duty(ch, value)\n立即更新 PWM 输出"]
+    APPLY -->|"LED1~2"| LED_SET["pwm_set_duty(ch, value)\n立即更新 LED 亮度"]
+    APPLY -->|"RUN_MODE"| MODE_SET["更新运行模式标志"]
+
+    REJECT["❌ 拒绝写入\n返回 MB_ENOREG\n异常响应码 0x02"]
+
+    PWM_SET --> ECHO(["返回正常响应\n原样回显"])
+    LED_SET --> ECHO
+    MODE_SET --> ECHO
+
+    REQ --> CHECK_ADDR
+
+    style WRITE_OK fill:#C8E6C9,stroke:#2E7D32,color:#000
+    style REJECT fill:#FFCDD2,stroke:#C62828,color:#000

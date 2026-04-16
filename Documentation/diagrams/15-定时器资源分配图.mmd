@@ -1,0 +1,51 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+flowchart TD
+    CLK(["APB1/APB2 时钟 84MHz"])
+
+    subgraph TIM4_G["TIM4 — 舵机 1~4"]
+        direction LR
+        T4_CFG["ARR=19999  PSC=83\n频率: 50Hz  周期: 20ms"]
+        T4_CH["CH1 PD12 → 舵机3\nCH2 PD13 → 舵机1\nCH3 PD14 → 舵机4\nCH4 PD15 → 舵机2"]
+        T4_CFG --- T4_CH
+    end
+
+    subgraph TIM8_G["TIM8 — 舵机 5~6"]
+        direction LR
+        T8_CFG["ARR=19999  PSC=83\n频率: 50Hz  周期: 20ms"]
+        T8_CH["CH1 PC6 → 舵机5\nCH2 PC7 → 舵机6"]
+        T8_CFG --- T8_CH
+    end
+
+    subgraph TIM3_G["TIM3 — 舵机 7~8"]
+        direction LR
+        T3_CFG["ARR=19999  PSC=83\n频率: 50Hz  周期: 20ms"]
+        T3_CH["CH3 PB0 → 舵机7\nCH4 PB1 → 舵机8"]
+        T3_CFG --- T3_CH
+    end
+
+    subgraph TIM1_G["TIM1 — LED 灯板 1~2"]
+        direction LR
+        T1_CFG["ARR=19999  PSC=83\n频率: 50Hz  周期: 20ms"]
+        T1_CH["CH1 PE9  → LED1\nCH2 PE11 → LED2\n占空比: 0~1000"]
+        T1_CFG --- T1_CH
+    end
+
+    CLK --> TIM4_G
+    CLK --> TIM8_G
+    CLK --> TIM3_G
+    CLK --> TIM1_G
+
+    subgraph PWM_RANGE["PWM 参数"]
+        SERVO_P["舵机: 500~2500μs\n对应 CCR: 500~2500\n中位: 1500μs"]
+        LED_P["LED: 0~1000\n对应占空比: 0%~5%"]
+    end
+
+    TIM4_G --> SERVO_P
+    TIM1_G --> LED_P

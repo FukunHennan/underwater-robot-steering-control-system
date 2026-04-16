@@ -1,0 +1,62 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#4A90D9"
+    primaryTextColor: "#000"
+    lineColor: "#555"
+---
+sequenceDiagram
+    participant HOST as 上位机 (Web Dashboard)
+    participant SERIAL as USB转串口
+    participant SLAVE as STM32F407<br/>Modbus RTU 从站
+    participant REG as 保持寄存器<br/>g_modbus_registers[58]
+    participant HW as 硬件外设<br/>(PWM/ADC/MS901M)
+
+    Note over HOST,HW: === 连接阶段 ===
+
+    HOST->>SERIAL: Web Serial API<br/>请求串口 9600 8N1
+    SERIAL-->>HOST: 连接成功
+
+    Note over HOST,HW: === 读取数据 (FC03) ===
+
+    HOST->>SERIAL: TX: [01 03 00 00 00 06 CRC]<br/>读系统寄存器 0x0000~0x0005
+    SERIAL->>SLAVE: USART2 RX
+    SLAVE->>REG: eMBRegHoldingCB()<br/>mode=MB_REG_READ
+    REG-->>SLAVE: 返回 6 个寄存器值
+    SLAVE-->>SERIAL: TX: [01 03 0C data... CRC]
+    SERIAL-->>HOST: 解析响应, 更新 UI
+
+    HOST->>SERIAL: TX: [01 03 00 10 00 0C CRC]<br/>读姿态寄存器 0x0010~0x001B
+    SERIAL->>SLAVE: USART2 RX
+    SLAVE->>REG: 读取 12 个寄存器<br/>(6个 IEEE754 float)
+    REG-->>SLAVE: ROLL/PITCH/YAW/GYRO_XYZ
+    SLAVE-->>SERIAL: TX: [01 03 18 data... CRC]
+    SERIAL-->>HOST: regsToFloat() 解析浮点数
+
+    Note over HOST,HW: === 写入控制 (FC06) ===
+
+    HOST->>SERIAL: TX: [01 06 00 20 05 DC CRC]<br/>写 SERVO1 = 1500μs
+    SERIAL->>SLAVE: USART2 RX
+    SLAVE->>REG: eMBRegHoldingCB()<br/>mode=MB_REG_WRITE
+    REG->>REG: is_reg_writable(0x0020)? ✅
+    REG->>HW: apply_register()<br/>pwm_set_duty(SERVO1, 1500)
+    HW-->>HW: TIM4_CH2 输出 1500μs
+    SLAVE-->>SERIAL: TX: [01 06 00 20 05 DC CRC] (回显)
+    SERIAL-->>HOST: 写入成功
+
+    Note over HOST,HW: === 写保护 ===
+
+    HOST->>SERIAL: TX: [01 06 00 00 xx xx CRC]<br/>尝试写 DEVICE_ID (只读)
+    SERIAL->>SLAVE: USART2 RX
+    SLAVE->>REG: is_reg_writable(0x0000)? ❌
+    SLAVE-->>SERIAL: TX: [01 86 02 CRC]<br/>异常码 0x02
+    SERIAL-->>HOST: 写入被拒绝
+
+    Note over HOST,HW: === 后台传感器更新 ===
+
+    loop 主循环 每 5ms
+        HW->>REG: MS901M → 姿态浮点寄存器
+        HW->>REG: ADC → 模拟量/电压/原始值
+        HW->>REG: HAL_GetTick() → SYS_TICK
+    end
