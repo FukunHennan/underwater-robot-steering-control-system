@@ -68,6 +68,24 @@
  *  0x0037 ADC_RAW2       R    12-bit raw
  *  0x0038 ADC_RAW3       R    12-bit raw
  *  0x0039 ADC_RAW4       R    12-bit raw
+ *
+ *  PWM Frequency (0x0040 - 0x0047)  freq = TIM_CLK/(psc+1)/(arr+1)
+ *  0x0040 PWM_ARR_G1     R/W  TIM4 period   (CH1-4,  84MHz)
+ *  0x0041 PWM_PSC_G1     R/W  TIM4 prescaler
+ *  0x0042 PWM_ARR_G2     R/W  TIM8 period   (CH5-6, 168MHz)
+ *  0x0043 PWM_PSC_G2     R/W  TIM8 prescaler
+ *  0x0044 PWM_ARR_G3     R/W  TIM3 period   (CH7-8,  84MHz)
+ *  0x0045 PWM_PSC_G3     R/W  TIM3 prescaler
+ *  0x0046 PWM_ARR_G4     R/W  TIM1 period   (LED1-2,168MHz)
+ *  0x0047 PWM_PSC_G4     R/W  TIM1 prescaler
+ *
+ *  Barometer / MS901M (0x0048 - 0x004D)
+ *  0x0048 PRESSURE_H     R    Pressure high 16-bit (int32, Pa)
+ *  0x0049 PRESSURE_L     R    Pressure low  16-bit
+ *  0x004A ALTITUDE_H     R    Altitude high 16-bit (int32, cm)
+ *  0x004B ALTITUDE_L     R    Altitude low  16-bit
+ *  0x004C BARO_TEMP_H    R    Temperature float high (IEEE 754, deg C)
+ *  0x004D BARO_TEMP_L    R    Temperature float low
  * ============================================================ */
 
 /* System registers: 0x0000 - 0x0005 */
@@ -110,8 +128,25 @@
 #define REG_ADC_RAW3          56
 #define REG_ADC_RAW4          57
 
+/* PWM frequency registers: 0x0040 - 0x0047 (ARR + PSC per timer group) */
+#define REG_PWM_ARR_G1        64     /* 0x0040 TIM4 period   (CH1-4)  */
+#define REG_PWM_PSC_G1        65     /* 0x0041 TIM4 prescaler         */
+#define REG_PWM_ARR_G2        66     /* 0x0042 TIM8 period   (CH5-6)  */
+#define REG_PWM_PSC_G2        67     /* 0x0043 TIM8 prescaler         */
+#define REG_PWM_ARR_G3        68     /* 0x0044 TIM3 period   (CH7-8)  */
+#define REG_PWM_PSC_G3        69     /* 0x0045 TIM3 prescaler         */
+#define REG_PWM_ARR_G4        70     /* 0x0046 TIM1 period   (LED1-2) */
+#define REG_PWM_PSC_G4        71     /* 0x0047 TIM1 prescaler         */
+
+/* Barometer registers: 0x0048 - 0x004D */
+#define REG_PRESSURE_H        72     /* 0x0048 Pressure high (int32, Pa) */
+#define REG_PRESSURE_L        73     /* 0x0049 Pressure low              */
+#define REG_ALTITUDE_H        74     /* 0x004A Altitude high (int32, cm) */
+#define REG_ALTITUDE_L        75     /* 0x004B Altitude low              */
+#define REG_BARO_TEMP         76     /* 0x004C-0x004D Temperature (float, deg C) */
+
 /* Total register count */
-#define REG_HOLDING_MAX       58
+#define REG_HOLDING_MAX       78
 
 void modbus_init(void);
 void modbus_process(void);
@@ -121,5 +156,6 @@ uint16_t modbus_get_register(uint16_t addr);
 void modbus_set_register(uint16_t addr, uint16_t value);
 void modbus_set_register_float(uint16_t addr, float value);
 float modbus_get_register_float(uint16_t addr);
+void modbus_set_register_int32(uint16_t addr, int32_t value);
 
 #endif

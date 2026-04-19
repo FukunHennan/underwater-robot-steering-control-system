@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Waves, Plug, PlugZap, RefreshCw, Activity, Thermometer,
-  Gauge, Sliders, Cpu, AlertTriangle, Zap, Sun, ChevronDown, ChevronUp
+  Waves, Plug, PlugZap, RefreshCw, Activity, Thermometer, CloudRain,
+  Gauge, Sliders, Cpu, AlertTriangle, Zap, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { ModbusClient, type ConnectionState, type ModbusLog, REG } from './lib/modbus'
 
@@ -16,7 +16,17 @@ interface AttitudeData {
   gyroX: number; gyroY: number; gyroZ: number;
 }
 interface PwmData { servos: number[]; leds: number[] }
+interface PwmFreqGroup { arr: number; psc: number }
+interface PwmFreqData { groups: PwmFreqGroup[] }
 interface AdcData { temps: number[]; voltage: number; adcRaw: number[] }
+interface BarometerData { pressure: number; altitude: number; temperature: number }
+
+const PWM_GROUPS = [
+  { label: 'TIM4', clock: 84_000_000, channels: [0, 1, 2, 3], chLabels: ['CH1', 'CH2', 'CH3', 'CH4'] },
+  { label: 'TIM8', clock: 168_000_000, channels: [4, 5], chLabels: ['CH5', 'CH6'] },
+  { label: 'TIM3', clock: 84_000_000, channels: [6, 7], chLabels: ['CH7', 'CH8'] },
+  { label: 'TIM1', clock: 168_000_000, channels: [] as number[], chLabels: [] as string[], isLed: true, ledChannels: [0, 1], ledLabels: ['LED1', 'LED2'] },
+] as const
 
 // ======================== Helpers ========================
 
@@ -131,6 +141,94 @@ function AttitudeModel({ roll, pitch, yaw }: { roll: number; pitch: number; yaw:
   )
 }
 
+// ======================== Attitude Waveform ========================
+
+const WAVEFORM_MAX = 80  // number of history samples
+const WAVE_COLORS = {
+  roll: '#38bdf8',   // sky-400
+  pitch: '#34d399',  // emerald-400
+  yaw: '#fbbf24',    // amber-400
+  gyroX: '#f87171',  // red-400
+  gyroY: '#a78bfa',  // violet-400
+  gyroZ: '#fb923c',  // orange-400
+}
+
+interface WaveformSeries { label: string; color: string; data: number[] }
+
+function AttitudeWaveform({ history, showGyro }: { history: AttitudeData[]; showGyro: boolean }) {
+  const W = 600, H = 200, PL = 40, PR = 8, PT = 8, PB = 20
+  const cw = W - PL - PR, ch = H - PT - PB
+
+  const series: WaveformSeries[] = showGyro
+    ? [
+        { label: 'Gyro X', color: WAVE_COLORS.gyroX, data: history.map(h => h.gyroX) },
+        { label: 'Gyro Y', color: WAVE_COLORS.gyroY, data: history.map(h => h.gyroY) },
+        { label: 'Gyro Z', color: WAVE_COLORS.gyroZ, data: history.map(h => h.gyroZ) },
+      ]
+    : [
+        { label: 'Roll', color: WAVE_COLORS.roll, data: history.map(h => h.roll) },
+        { label: 'Pitch', color: WAVE_COLORS.pitch, data: history.map(h => h.pitch) },
+        { label: 'Yaw', color: WAVE_COLORS.yaw, data: history.map(h => h.yaw) },
+      ]
+
+  // Auto-scale Y axis
+  let allVals = series.flatMap(s => s.data)
+  if (allVals.length === 0) allVals = [-1, 1]
+  let yMin = Math.min(...allVals), yMax = Math.max(...allVals)
+  const yPad = Math.max((yMax - yMin) * 0.1, 1)
+  yMin -= yPad; yMax += yPad
+
+  const toX = (i: number) => PL + (i / Math.max(history.length - 1, 1)) * cw
+  const toY = (v: number) => PT + ch - ((v - yMin) / (yMax - yMin)) * ch
+
+  // Grid lines (5 horizontal)
+  const gridLines = Array.from({ length: 5 }, (_, i) => {
+    const v = yMin + (yMax - yMin) * (i / 4)
+    return { y: toY(v), label: v.toFixed(1) }
+  })
+
+  return (
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        {/* Grid */}
+        {gridLines.map((g, i) => (
+          <g key={i}>
+            <line x1={PL} y1={g.y} x2={W - PR} y2={g.y} stroke="var(--border)" strokeWidth={0.5} strokeDasharray="3,3" />
+            <text x={PL - 4} y={g.y + 3} textAnchor="end" fill="var(--fg-muted)" fontSize={8} fontFamily="monospace">{g.label}</text>
+          </g>
+        ))}
+        {/* Zero line */}
+        {yMin < 0 && yMax > 0 && (
+          <line x1={PL} y1={toY(0)} x2={W - PR} y2={toY(0)} stroke="var(--fg-muted)" strokeWidth={0.5} opacity={0.4} />
+        )}
+        {/* Data lines */}
+        {series.map((s, si) => {
+          if (s.data.length < 2) return null
+          const pts = s.data.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')
+          return <polyline key={si} points={pts} fill="none" stroke={s.color} strokeWidth={1.5} strokeLinejoin="round" />
+        })}
+        {/* Axes */}
+        <line x1={PL} y1={PT} x2={PL} y2={H - PB} stroke="var(--border)" strokeWidth={1} />
+        <line x1={PL} y1={H - PB} x2={W - PR} y2={H - PB} stroke="var(--border)" strokeWidth={1} />
+      </svg>
+      {/* Legend */}
+      <div className="flex items-center gap-3 mt-1 px-1">
+        {series.map((s, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <span className="inline-block w-3 h-0.5 rounded" style={{ backgroundColor: s.color }} />
+            <span className="text-[10px] text-[--fg-muted]">{s.label}</span>
+            {s.data.length > 0 && (
+              <span className="text-[10px] font-mono" style={{ color: s.color }}>
+                {s.data[s.data.length - 1].toFixed(1)}{showGyro ? '°/s' : '°'}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ======================== App ========================
 
 export default function App() {
@@ -144,12 +242,21 @@ export default function App() {
   const [system, setSystem] = useState<SystemData | null>(null)
   const [attitude, setAttitude] = useState<AttitudeData | null>(null)
   const [pwm, setPwm] = useState<PwmData | null>(null)
+  const [pwmFreq, setPwmFreq] = useState<PwmFreqData | null>(null)
   const [adc, setAdc] = useState<AdcData | null>(null)
+  const [baro, setBaro] = useState<BarometerData | null>(null)
   const [error, setError] = useState('')
+  const [attHistory, setAttHistory] = useState<AttitudeData[]>([])
+  const [showGyro, setShowGyro] = useState(false)
+  const [attOffset, setAttOffset] = useState<AttitudeData | null>(null)
 
   /* Local slider state: instant UI feedback, write only on release */
   const [localServos, setLocalServos] = useState<number[]>([1500,1500,1500,1500,1500,1500,1500,1500])
   const [localLeds, setLocalLeds] = useState<number[]>([0, 0])
+  const [localFreq, setLocalFreq] = useState<PwmFreqGroup[]>([
+    { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 },
+    { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 },
+  ])
   const draggingRef = useRef(false)
 
   const pollingRef = useRef(false)
@@ -183,15 +290,17 @@ export default function App() {
     if (connState !== 'connected') return
     try {
       setError('')
-      const [sys, att, pwmData, adcData] = await Promise.all([
+      const [sys, att, pwmData, freqData, adcData] = await Promise.all([
         client.readSystem().catch(() => null),
         client.readAttitude().catch(() => null),
         client.readPWM().catch(() => null),
+        client.readPWMFreq().catch(() => null),
         client.readADC().catch(() => null),
       ])
       if (sys) setSystem(sys)
       if (att) setAttitude(att)
       if (pwmData) setPwm(pwmData)
+      if (freqData) setPwmFreq(freqData)
       if (adcData) setAdc(adcData)
     } catch (e: any) {
       setError(e.message)
@@ -209,8 +318,12 @@ export default function App() {
       setAttitude(att)
       const pwmData = await client.readPWM()
       setPwm(pwmData)
+      const freqData = await client.readPWMFreq()
+      setPwmFreq(freqData)
       const adcData = await client.readADC()
       setAdc(adcData)
+      const baroData = await client.readBarometer()
+      setBaro(baroData)
     } catch (e: any) {
       setError(e.message)
     }
@@ -249,6 +362,40 @@ export default function App() {
     }
   }, [pwm])
 
+  useEffect(() => {
+    if (pwmFreq) setLocalFreq(pwmFreq.groups.map(g => ({ ...g })))
+  }, [pwmFreq])
+
+  const applyOffset = useCallback((raw: AttitudeData): AttitudeData => {
+    if (!attOffset) return raw
+    return {
+      roll: raw.roll - attOffset.roll,
+      pitch: raw.pitch - attOffset.pitch,
+      yaw: raw.yaw - attOffset.yaw,
+      gyroX: raw.gyroX - attOffset.gyroX,
+      gyroY: raw.gyroY - attOffset.gyroY,
+      gyroZ: raw.gyroZ - attOffset.gyroZ,
+    }
+  }, [attOffset])
+
+  const calibratedAttitude = attitude ? applyOffset(attitude) : null
+
+  useEffect(() => {
+    if (attitude) setAttHistory(prev => [...prev.slice(-(WAVEFORM_MAX - 1)), applyOffset(attitude)])
+  }, [attitude, applyOffset])
+
+  const handleZeroCalibrate = () => {
+    if (attitude) {
+      setAttOffset({ ...attitude })
+      setAttHistory([])
+    }
+  }
+
+  const handleClearCalibrate = () => {
+    setAttOffset(null)
+    setAttHistory([])
+  }
+
   const handleServoDrag = (channel: number, value: number) => {
     draggingRef.current = true
     setLocalServos(prev => { const n = [...prev]; n[channel] = value; return n })
@@ -275,6 +422,29 @@ export default function App() {
     } catch (e: any) {
       setError(e.message)
     }
+  }
+
+  const handleFreqChange = (group: number, field: 'arr' | 'psc', value: number) => {
+    setLocalFreq(prev => {
+      const n = [...prev]
+      n[group] = { ...n[group], [field]: value }
+      return n
+    })
+  }
+
+  const handleFreqCommit = async (group: number) => {
+    try {
+      const regBase = REG.PWM_ARR_G1 + group * 2
+      await client.writeMultipleRegisters(regBase, [localFreq[group].arr, localFreq[group].psc])
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  const calcFreq = (group: number) => {
+    const clk = PWM_GROUPS[group].clock
+    const { arr, psc } = localFreq[group]
+    return clk / (psc + 1) / (arr + 1)
   }
 
   const fmtFloat = (v: number) => v.toFixed(2)
@@ -359,21 +529,36 @@ export default function App() {
         {/* Attitude data + 3D model */}
         <Card title="姿态数据 (MS901M)" icon={<Activity className="w-4 h-4 text-emerald-400" />} className="col-span-12 lg:col-span-5">
           <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-            <Metric label="Roll 横滚" value={attitude ? fmtFloat(attitude.roll) : '--'} unit="°" color="text-sky-400" />
-            <Metric label="Pitch 俯仰" value={attitude ? fmtFloat(attitude.pitch) : '--'} unit="°" color="text-emerald-400" />
-            <Metric label="Yaw 航向" value={attitude ? fmtFloat(attitude.yaw) : '--'} unit="°" color="text-amber-400" />
-            <Metric label="Gyro X" value={attitude ? fmtFloat(attitude.gyroX) : '--'} unit="°/s" />
-            <Metric label="Gyro Y" value={attitude ? fmtFloat(attitude.gyroY) : '--'} unit="°/s" />
-            <Metric label="Gyro Z" value={attitude ? fmtFloat(attitude.gyroZ) : '--'} unit="°/s" />
+            <Metric label="Roll 横滚" value={calibratedAttitude ? fmtFloat(calibratedAttitude.roll) : '--'} unit="°" color="text-sky-400" />
+            <Metric label="Pitch 俯仰" value={calibratedAttitude ? fmtFloat(calibratedAttitude.pitch) : '--'} unit="°" color="text-emerald-400" />
+            <Metric label="Yaw 航向" value={calibratedAttitude ? fmtFloat(calibratedAttitude.yaw) : '--'} unit="°" color="text-amber-400" />
+            <Metric label="Gyro X" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroX) : '--'} unit="°/s" />
+            <Metric label="Gyro Y" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroY) : '--'} unit="°/s" />
+            <Metric label="Gyro Z" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroZ) : '--'} unit="°/s" />
+          </div>
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[--border]">
+            <button onClick={handleZeroCalibrate} disabled={!attitude}
+              className="px-3 py-1 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 transition-colors">
+              零点校准
+            </button>
+            {attOffset && (
+              <button onClick={handleClearCalibrate}
+                className="px-3 py-1 rounded text-[10px] font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+                清除校准
+              </button>
+            )}
+            {attOffset && (
+              <span className="text-[10px] text-[--fg-muted] ml-auto">已校准</span>
+            )}
           </div>
         </Card>
 
         {/* 3D Attitude Model */}
         <Card title="姿态可视化" icon={<Activity className="w-4 h-4 text-sky-400" />} className="col-span-12 lg:col-span-4">
           <AttitudeModel
-            roll={attitude?.roll ?? 0}
-            pitch={attitude?.pitch ?? 0}
-            yaw={attitude?.yaw ?? 0}
+            roll={calibratedAttitude?.roll ?? 0}
+            pitch={calibratedAttitude?.pitch ?? 0}
+            yaw={calibratedAttitude?.yaw ?? 0}
           />
         </Card>
 
@@ -422,49 +607,150 @@ export default function App() {
           </div>
         </Card>
 
-        {/* PWM Servos */}
-        <Card title="舵机 PWM 控制" icon={<Sliders className="w-4 h-4 text-violet-400" />} className="col-span-12 lg:col-span-8">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-            {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-xs text-[--fg-muted] w-14">Servo {i + 1}</span>
-                <input
-                  type="range" min={500} max={2500} step={10}
-                  value={localServos[i]}
-                  onChange={e => handleServoDrag(i, Number(e.target.value))}
-                  onPointerUp={e => handleServoCommit(i, Number((e.target as HTMLInputElement).value))}
-                  disabled={connState !== 'connected'}
-                  className="flex-1"
-                />
-                <span className="text-xs font-mono text-[--fg-secondary] w-14 text-right">
-                  {localServos[i]} μs
+        {/* Barometer Data (MS901M) */}
+        <Card title="气压计 (MS901M)" icon={<CloudRain className="w-4 h-4 text-cyan-400" />} className="col-span-12 lg:col-span-3">
+          <div className="space-y-3">
+            <div className="bg-[--bg-input] rounded px-3 py-2">
+              <div className="text-[10px] text-[--fg-muted] uppercase">气压</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-mono font-bold text-cyan-400">
+                  {baro ? (baro.pressure / 100).toFixed(2) : '--'}
                 </span>
+                <span className="text-xs text-[--fg-muted]">hPa</span>
               </div>
-            ))}
+              {baro && (
+                <div className="text-[10px] text-[--fg-muted] font-mono mt-0.5">{baro.pressure} Pa</div>
+              )}
+            </div>
+            <div className="bg-[--bg-input] rounded px-3 py-2">
+              <div className="text-[10px] text-[--fg-muted] uppercase">海拔高度</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-mono font-bold text-emerald-400">
+                  {baro ? (baro.altitude / 100).toFixed(2) : '--'}
+                </span>
+                <span className="text-xs text-[--fg-muted]">m</span>
+              </div>
+              {baro && (
+                <div className="text-[10px] text-[--fg-muted] font-mono mt-0.5">{baro.altitude} cm</div>
+              )}
+            </div>
+            <div className="bg-[--bg-input] rounded px-3 py-2">
+              <div className="text-[10px] text-[--fg-muted] uppercase">温度</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-mono font-bold text-amber-400">
+                  {baro ? baro.temperature.toFixed(1) : '--'}
+                </span>
+                <span className="text-xs text-[--fg-muted]">°C</span>
+              </div>
+            </div>
           </div>
         </Card>
 
-        {/* LED Control */}
-        <Card title="LED 控制" icon={<Sun className="w-4 h-4 text-yellow-400" />} className="col-span-12 lg:col-span-4">
-          <div className="space-y-3">
-            {[0, 1].map(i => (
-              <div key={i}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-[--fg-muted]">LED {i + 1}</span>
-                  <span className="text-xs font-mono text-[--fg-secondary]">
-                    {localLeds[i]} / 1000
-                  </span>
+        {/* Attitude Waveform */}
+        <Card title="姿态波形" icon={<Activity className="w-4 h-4 text-sky-400" />} className="col-span-12 lg:col-span-6">
+          <div className="flex items-center gap-2 mb-2">
+            <button
+              onClick={() => setShowGyro(false)}
+              className={cn(
+                "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                !showGyro ? "bg-sky-500/20 text-sky-400" : "text-[--fg-muted] hover:text-[--fg-secondary]"
+              )}>欧拉角</button>
+            <button
+              onClick={() => setShowGyro(true)}
+              className={cn(
+                "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                showGyro ? "bg-red-500/20 text-red-400" : "text-[--fg-muted] hover:text-[--fg-secondary]"
+              )}>角速度</button>
+            {attHistory.length > 0 && (
+              <span className="text-[10px] text-[--fg-muted] ml-auto font-mono">{attHistory.length} / {WAVEFORM_MAX} pts</span>
+            )}
+          </div>
+          {attHistory.length > 0
+            ? <AttitudeWaveform history={attHistory} showGyro={showGyro} />
+            : <div className="flex items-center justify-center h-48 text-xs text-[--fg-muted]">等待姿态数据...</div>
+          }
+        </Card>
+
+        {/* PWM Control — grouped by timer */}
+        <Card title="PWM 控制" icon={<Sliders className="w-4 h-4 text-violet-400" />} className="col-span-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {PWM_GROUPS.map((g, gi) => {
+              const freq = calcFreq(gi)
+              const isLed = 'isLed' in g && g.isLed
+              return (
+                <div key={gi} className="bg-[--bg-input] rounded-lg p-3">
+                  {/* Group header: timer name + frequency */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-[--fg-primary]">{g.label}</span>
+                      <span className="text-[10px] text-[--fg-muted]">
+                        {isLed ? 'LED1-2' : g.chLabels.join(', ')}
+                      </span>
+                      <span className="text-[10px] text-[--fg-muted]">({(g.clock / 1e6).toFixed(0)}MHz)</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-violet-400">
+                      {freq >= 1000 ? `${(freq / 1000).toFixed(2)} kHz` : `${freq.toFixed(2)} Hz`}
+                    </span>
+                  </div>
+                  {/* Channel duty sliders */}
+                  <div className="space-y-1 mb-2">
+                    {!isLed && g.channels.map((ch, ci) => (
+                      <div key={ch} className="flex items-center gap-2">
+                        <span className="text-[10px] text-[--fg-muted] w-8 font-mono">{g.chLabels[ci]}</span>
+                        <input
+                          type="range" min={500} max={2500} step={10}
+                          value={localServos[ch]}
+                          onChange={e => handleServoDrag(ch, Number(e.target.value))}
+                          onPointerUp={e => handleServoCommit(ch, Number((e.target as HTMLInputElement).value))}
+                          disabled={connState !== 'connected'}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] font-mono text-[--fg-secondary] w-14 text-right">{localServos[ch]} μs</span>
+                      </div>
+                    ))}
+                    {isLed && [0, 1].map(li => (
+                      <div key={li} className="flex items-center gap-2">
+                        <span className="text-[10px] text-[--fg-muted] w-8 font-mono">LED{li + 1}</span>
+                        <input
+                          type="range" min={0} max={1000} step={10}
+                          value={localLeds[li]}
+                          onChange={e => handleLedDrag(li, Number(e.target.value))}
+                          onPointerUp={e => handleLedCommit(li, Number((e.target as HTMLInputElement).value))}
+                          disabled={connState !== 'connected'}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] font-mono text-[--fg-secondary] w-14 text-right">{localLeds[li]} / 1000</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Frequency ARR/PSC */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-[--border]/50">
+                    <span className="text-[10px] text-[--fg-muted]">频率</span>
+                    <label className="text-[10px] text-[--fg-muted]">ARR</label>
+                    <input
+                      type="number" min={0} max={65535}
+                      value={localFreq[gi].arr}
+                      onChange={e => handleFreqChange(gi, 'arr', Number(e.target.value))}
+                      disabled={connState !== 'connected'}
+                      className="w-20 bg-[--bg-card] border border-[--border] rounded px-2 py-0.5 text-xs font-mono text-[--fg-primary]"
+                    />
+                    <label className="text-[10px] text-[--fg-muted]">PSC</label>
+                    <input
+                      type="number" min={0} max={65535}
+                      value={localFreq[gi].psc}
+                      onChange={e => handleFreqChange(gi, 'psc', Number(e.target.value))}
+                      disabled={connState !== 'connected'}
+                      className="w-20 bg-[--bg-card] border border-[--border] rounded px-2 py-0.5 text-xs font-mono text-[--fg-primary]"
+                    />
+                    <button
+                      onClick={() => handleFreqCommit(gi)}
+                      disabled={connState !== 'connected'}
+                      className="ml-auto px-2.5 py-0.5 rounded text-[10px] bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 disabled:opacity-50 transition-colors"
+                    >写入</button>
+                  </div>
                 </div>
-                <input
-                  type="range" min={0} max={1000} step={10}
-                  value={localLeds[i]}
-                  onChange={e => handleLedDrag(i, Number(e.target.value))}
-                  onPointerUp={e => handleLedCommit(i, Number((e.target as HTMLInputElement).value))}
-                  disabled={connState !== 'connected'}
-                  className="w-full"
-                />
-              </div>
-            ))}
+              )
+            })}
           </div>
         </Card>
 

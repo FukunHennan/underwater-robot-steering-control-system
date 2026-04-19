@@ -100,6 +100,18 @@ void demo_run(void)
             }
         }
 
+        /* Read MS901M barometer (non-blocking: 5ms timeout) */
+        {
+            atk_ms901m_barometer_data_t baro;
+
+            if (atk_ms901m_get_barometer(&baro, 5) == ATK_MS901M_EOK)
+            {
+                modbus_set_register_int32(REG_PRESSURE_H, baro.pressure);
+                modbus_set_register_int32(REG_ALTITUDE_H, baro.altitude);
+                modbus_set_register_float(REG_BARO_TEMP,  baro.temperature);
+            }
+        }
+
         /* Process Modbus (includes sensor register update + eMBPoll) */
         modbus_process();
 

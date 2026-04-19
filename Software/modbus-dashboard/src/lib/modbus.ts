@@ -98,6 +98,11 @@ function parseReadResponse(response: Uint8Array): number[] {
 // ======================== Float conversion ========================
 
 /** Convert 2 Modbus registers (Big-Endian word order) to IEEE 754 float */
+export function regsToInt32(hi: number, lo: number): number {
+  const val = (hi << 16) | lo;
+  return val > 0x7FFFFFFF ? val - 0x100000000 : val;
+}
+
 export function regsToFloat(high: number, low: number): number {
   const buf = new ArrayBuffer(4);
   const view = new DataView(buf);
@@ -149,6 +154,21 @@ export const REG = {
   ADC_RAW2: 0x0037,
   ADC_RAW3: 0x0038,
   ADC_RAW4: 0x0039,
+
+  PWM_ARR_G1: 0x0040,
+  PWM_PSC_G1: 0x0041,
+  PWM_ARR_G2: 0x0042,
+  PWM_PSC_G2: 0x0043,
+  PWM_ARR_G3: 0x0044,
+  PWM_PSC_G3: 0x0045,
+  PWM_ARR_G4: 0x0046,
+  PWM_PSC_G4: 0x0047,
+
+  PRESSURE_H: 0x0048,
+  PRESSURE_L: 0x0049,
+  ALTITUDE_H: 0x004a,
+  ALTITUDE_L: 0x004b,
+  BARO_TEMP: 0x004c,
 } as const;
 
 // ======================== Serial + Modbus class ========================
@@ -353,6 +373,19 @@ export class ModbusClient {
     };
   }
 
+  /** Read PWM frequency registers (0x0040-0x0047) */
+  async readPWMFreq() {
+    const regs = await this.readHoldingRegisters(REG.PWM_ARR_G1, 8);
+    return {
+      groups: [
+        { arr: regs[0], psc: regs[1] },
+        { arr: regs[2], psc: regs[3] },
+        { arr: regs[4], psc: regs[5] },
+        { arr: regs[6], psc: regs[7] },
+      ],
+    };
+  }
+
   /** Read all ADC registers (0x0030-0x0039) */
   async readADC() {
     const regs = await this.readHoldingRegisters(REG.TEMP1, 10);
@@ -365,6 +398,16 @@ export class ModbusClient {
       ],
       voltage: regToInt16(regs[4]) / 10,
       adcRaw: regs.slice(5, 10),
+    };
+  }
+
+  /** Read barometer registers (0x0048-0x004D) */
+  async readBarometer() {
+    const regs = await this.readHoldingRegisters(REG.PRESSURE_H, 6);
+    return {
+      pressure: regsToInt32(regs[0], regs[1]),
+      altitude: regsToInt32(regs[2], regs[3]),
+      temperature: regsToFloat(regs[4], regs[5]),
     };
   }
 }

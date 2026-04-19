@@ -35,6 +35,7 @@ static BOOL is_reg_writable(USHORT addr)
 {
     if (addr == REG_RUN_MODE) return TRUE;
     if (addr >= REG_SERVO1 && addr <= REG_LED2) return TRUE;
+    if (addr >= REG_PWM_ARR_G1 && addr <= REG_PWM_PSC_G4) return TRUE;
     return FALSE;
 }
 
@@ -51,6 +52,14 @@ static void apply_register(USHORT addr)
     else if (addr == REG_LED2)
     {
         pwm_set_duty(PWM_CH_LED_2, g_modbus_registers[addr]);
+    }
+    else if (addr >= REG_PWM_ARR_G1 && addr <= REG_PWM_PSC_G4)
+    {
+        /* Apply frequency change: ARR and PSC come in pairs, apply on either write */
+        uint8_t group = (addr - REG_PWM_ARR_G1) / 2 + PWM_GROUP_1;
+        uint16_t arr_reg = REG_PWM_ARR_G1 + (group - PWM_GROUP_1) * 2;
+        uint16_t psc_reg = arr_reg + 1;
+        pwm_set_frequency(group, g_modbus_registers[arr_reg], g_modbus_registers[psc_reg]);
     }
 }
 
@@ -76,6 +85,16 @@ void modbus_init(void)
     {
         g_modbus_registers[i] = 1500;
     }
+
+    /* Default PWM frequency: 50Hz (arr=19999, psc=83 for 84MHz timers) */
+    g_modbus_registers[REG_PWM_ARR_G1] = 19999;
+    g_modbus_registers[REG_PWM_PSC_G1] = 83;
+    g_modbus_registers[REG_PWM_ARR_G2] = 19999;
+    g_modbus_registers[REG_PWM_PSC_G2] = 83;
+    g_modbus_registers[REG_PWM_ARR_G3] = 19999;
+    g_modbus_registers[REG_PWM_PSC_G3] = 83;
+    g_modbus_registers[REG_PWM_ARR_G4] = 19999;
+    g_modbus_registers[REG_PWM_PSC_G4] = 83;
 
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
@@ -164,6 +183,15 @@ float modbus_get_register_float(uint16_t addr)
         return value;
     }
     return 0.0f;
+}
+
+void modbus_set_register_int32(uint16_t addr, int32_t value)
+{
+    if ((addr + 1) < REG_HOLDING_MAX)
+    {
+        g_modbus_registers[addr]     = (uint16_t)((uint32_t)value >> 16);
+        g_modbus_registers[addr + 1] = (uint16_t)((uint32_t)value & 0xFFFF);
+    }
 }
 
 /* ----------------------- Modbus callback functions ------------------------*/
