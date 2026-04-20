@@ -1,0 +1,82 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" font-family="'SimSun', 'Times New Roman', serif">
+  <rect id="bg" x="0" y="0" width="800" height="520" fill="#fff"/>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#000"/>
+    </marker>
+  </defs>
+  <style>
+    text { fill: #000; }
+    .box { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .hl  { fill: #e8e8e8; stroke: #000; stroke-width: 1.5; }
+    .title { font-size: 16px; font-weight: bold; }
+    .name { font-size: 13px; font-weight: bold; }
+    .sub  { font-size: 11px; }
+    .line { stroke: #000; stroke-width: 1.2; fill: none; }
+  </style>
+
+  <text x="340" y="28" text-anchor="middle" class="title">图 3.5  Modbus 通信逻辑流程图</text>
+
+  <!-- 参与者标签 -->
+  <rect x="60" y="50" width="120" height="36" class="hl"/>
+  <text x="120" y="73" text-anchor="middle" class="name">上位机</text>
+
+  <rect x="280" y="50" width="120" height="36" class="hl"/>
+  <text x="340" y="73" text-anchor="middle" class="name">串口链路</text>
+
+  <rect x="500" y="50" width="120" height="36" class="hl"/>
+  <text x="560" y="73" text-anchor="middle" class="name">STM32 从站</text>
+
+  <!-- 生命线 -->
+  <line x1="120" y1="86" x2="120" y2="500" class="line" stroke-dasharray="4,3"/>
+  <line x1="340" y1="86" x2="340" y2="500" class="line" stroke-dasharray="4,3"/>
+  <line x1="560" y1="86" x2="560" y2="500" class="line" stroke-dasharray="4,3"/>
+
+  <!-- Step 1: 构建请求 -->
+  <rect x="40" y="110" width="160" height="36" class="box"/>
+  <text x="120" y="133" text-anchor="middle" class="sub">构建 FC03 请求帧</text>
+
+  <!-- Step 2: 发送 -->
+  <line x1="120" y1="146" x2="120" y2="160" class="line"/>
+  <line x1="120" y1="160" x2="340" y2="160" class="line" marker-end="url(#ar)"/>
+  <text x="230" y="150" text-anchor="middle" class="sub">TX: [01 03 addr cnt CRC]</text>
+
+  <!-- Step 3: 转发 -->
+  <line x1="340" y1="160" x2="340" y2="180" class="line"/>
+  <line x1="340" y1="180" x2="560" y2="180" class="line" marker-end="url(#ar)"/>
+  <text x="450" y="172" text-anchor="middle" class="sub">USART2 → 中断接收</text>
+
+  <!-- Step 4: 从站处理 -->
+  <rect x="480" y="200" width="160" height="50" class="box"/>
+  <text x="560" y="220" text-anchor="middle" class="sub">FreeModbus 解析</text>
+  <text x="560" y="238" text-anchor="middle" class="sub">CRC校验 + 读寄存器</text>
+
+  <!-- Step 5: 响应 -->
+  <line x1="560" y1="270" x2="340" y2="270" class="line" marker-end="url(#ar)"/>
+  <text x="450" y="262" text-anchor="middle" class="sub">TX: [01 03 len data CRC]</text>
+
+  <line x1="340" y1="270" x2="340" y2="290" class="line"/>
+  <line x1="340" y1="290" x2="120" y2="290" class="line" marker-end="url(#ar)"/>
+  <text x="230" y="282" text-anchor="middle" class="sub">RX: 响应帧</text>
+
+  <!-- Step 6: 解析 -->
+  <rect x="40" y="306" width="160" height="36" class="box"/>
+  <text x="120" y="329" text-anchor="middle" class="sub">CRC校验 + 解析数据</text>
+
+  <!-- Step 7: 帧间延时 -->
+  <rect x="40" y="368" width="160" height="36" class="hl"/>
+  <text x="120" y="391" text-anchor="middle" class="sub">帧间延时 15ms</text>
+
+  <!-- Step 8: 下一次 -->
+  <line x1="120" y1="404" x2="120" y2="420" class="line"/>
+  <line x1="120" y1="420" x2="340" y2="420" class="line" marker-end="url(#ar)"/>
+  <text x="230" y="414" text-anchor="middle" class="sub">TX: 下一组寄存器请求</text>
+
+  <line x1="340" y1="420" x2="340" y2="440" class="line"/>
+  <line x1="340" y1="440" x2="560" y2="440" class="line" marker-end="url(#ar)"/>
+
+  <!-- 右侧注释 -->
+  <rect x="20" y="450" width="760" height="40" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="400" y="475" text-anchor="middle" class="sub">轮询顺序: 系统(0x0000) → 姿态(0x0010) → PWM(0x0020) → ADC(0x0030) → 气压(0x0048)</text>
+</svg>

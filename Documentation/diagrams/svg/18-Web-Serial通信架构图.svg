@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="'SimSun', 'Times New Roman', serif">
+  <rect id="bg" x="0" y="0" width="760" height="360" fill="#fff"/>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#000"/>
+    </marker>
+    <marker id="arl" markerWidth="12" markerHeight="12" refX="1" refY="6" orient="auto">
+      <path d="M12,0 L0,6 L12,12 z" fill="#000"/>
+    </marker>
+  </defs>
+  <style>
+    text { fill: #000; }
+    .box { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .hl  { fill: #e8e8e8; stroke: #000; stroke-width: 1.5; }
+    .title { font-size: 16px; font-weight: bold; }
+    .name { font-size: 13px; font-weight: bold; }
+    .sub  { font-size: 11px; }
+    .line { stroke: #000; stroke-width: 1.2; fill: none; }
+  </style>
+
+  <text x="380" y="28" text-anchor="middle" class="title">图 3.1  Web Serial 通信架构图</text>
+
+  <!-- 浏览器层 -->
+  <rect x="20" y="50" width="340" height="140" fill="none" stroke="#000" stroke-width="1.5"/>
+  <text x="190" y="72" text-anchor="middle" class="name">Chrome / Edge 浏览器</text>
+
+  <rect x="40" y="84" width="140" height="40" class="hl"/>
+  <text x="110" y="108" text-anchor="middle" class="sub">React Dashboard</text>
+
+  <rect x="200" y="84" width="140" height="40" class="hl"/>
+  <text x="270" y="108" text-anchor="middle" class="sub">Modbus RTU 客户端</text>
+
+  <rect x="40" y="140" width="300" height="36" class="box"/>
+  <text x="190" y="163" text-anchor="middle" class="name">Web Serial API</text>
+
+  <!-- USB-TTL -->
+  <rect x="420" y="130" width="140" height="50" class="box"/>
+  <text x="490" y="150" text-anchor="middle" class="name">USB-TTL 转换器</text>
+  <text x="490" y="167" text-anchor="middle" class="sub">CH340 / CP2102</text>
+
+  <line x1="340" y1="155" x2="420" y2="155" class="line" marker-end="url(#ar)" marker-start="url(#arl)"/>
+  <text x="380" y="148" text-anchor="middle" class="sub">USB</text>
+
+  <!-- STM32 -->
+  <rect x="610" y="100" width="130" height="100" class="hl"/>
+  <text x="675" y="140" text-anchor="middle" class="name">STM32F407</text>
+  <text x="675" y="158" text-anchor="middle" class="sub">USART2</text>
+  <text x="675" y="174" text-anchor="middle" class="sub">Modbus 从站</text>
+
+  <line x1="560" y1="150" x2="610" y2="150" class="line" marker-end="url(#ar)" marker-start="url(#arl)"/>
+  <text x="585" y="143" text-anchor="middle" class="sub">TTL</text>
+
+  <!-- 数据流说明 -->
+  <rect x="20" y="240" width="720" height="100" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="380" y="262" text-anchor="middle" class="name">通信参数与数据流</text>
+  <line x1="30" y1="268" x2="730" y2="268" class="line"/>
+  <text x="40" y="288" class="sub">波特率: 9600bps    数据位: 8    停止位: 1    校验: 无 (8N1)</text>
+  <text x="40" y="306" class="sub">上行: FC03 读请求 → 姿态/ADC/系统状态数据响应</text>
+  <text x="40" y="324" class="sub">下行: FC06/FC16 写请求 → PWM占空比/频率控制命令</text>
+</svg>

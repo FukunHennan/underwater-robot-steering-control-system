@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" font-family="'SimSun', 'Times New Roman', serif">
+  <rect id="bg" x="0" y="0" width="720" height="440" fill="#fff"/>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#000"/>
+    </marker>
+  </defs>
+  <style>
+    text { fill: #000; }
+    .box { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .hl  { fill: #e8e8e8; stroke: #000; stroke-width: 1.5; }
+    .title { font-size: 16px; font-weight: bold; }
+    .name { font-size: 13px; font-weight: bold; }
+    .sub  { font-size: 11px; }
+    .line { stroke: #000; stroke-width: 1.2; fill: none; }
+  </style>
+
+  <text x="360" y="28" text-anchor="middle" class="title">图 3.3  上位机软件架构图</text>
+
+  <!-- UI 层 -->
+  <rect x="40" y="50" width="640" height="90" fill="none" stroke="#000" stroke-width="1.5"/>
+  <text x="360" y="72" text-anchor="middle" class="name">视图层 (React + TailwindCSS)</text>
+
+  <rect x="60" y="82" width="120" height="40" class="box"/>
+  <text x="120" y="107" text-anchor="middle" class="sub">姿态面板</text>
+
+  <rect x="200" y="82" width="120" height="40" class="box"/>
+  <text x="260" y="107" text-anchor="middle" class="sub">PWM 控制面板</text>
+
+  <rect x="340" y="82" width="120" height="40" class="box"/>
+  <text x="400" y="107" text-anchor="middle" class="sub">ADC 数据面板</text>
+
+  <rect x="480" y="82" width="180" height="40" class="box"/>
+  <text x="570" y="107" text-anchor="middle" class="sub">系统信息 / 通信日志</text>
+
+  <line x1="360" y1="140" x2="360" y2="170" class="line" marker-end="url(#ar)"/>
+  <text x="380" y="160" class="sub">状态更新</text>
+
+  <!-- 数据层 -->
+  <rect x="40" y="172" width="640" height="70" fill="none" stroke="#000" stroke-width="1.5"/>
+  <text x="360" y="194" text-anchor="middle" class="name">数据层 (React State + 轮询调度)</text>
+
+  <rect x="60" y="204" width="180" height="28" class="hl"/>
+  <text x="150" y="222" text-anchor="middle" class="sub">attitude / gyro / adc / baro</text>
+
+  <rect x="260" y="204" width="180" height="28" class="hl"/>
+  <text x="350" y="222" text-anchor="middle" class="sub">pwm / frequency / system</text>
+
+  <rect x="460" y="204" width="200" height="28" class="hl"/>
+  <text x="560" y="222" text-anchor="middle" class="sub">轮询定时器 setInterval</text>
+
+  <line x1="360" y1="242" x2="360" y2="272" class="line" marker-end="url(#ar)"/>
+  <text x="380" y="262" class="sub">读/写请求</text>
+
+  <!-- 通信层 -->
+  <rect x="40" y="274" width="640" height="70" fill="none" stroke="#000" stroke-width="1.5"/>
+  <text x="360" y="296" text-anchor="middle" class="name">通信层 (Modbus RTU Client)</text>
+
+  <rect x="60" y="306" width="150" height="28" class="box"/>
+  <text x="135" y="324" text-anchor="middle" class="sub">FC03/FC06/FC16</text>
+
+  <rect x="230" y="306" width="150" height="28" class="box"/>
+  <text x="305" y="324" text-anchor="middle" class="sub">CRC16 校验</text>
+
+  <rect x="400" y="306" width="130" height="28" class="box"/>
+  <text x="465" y="324" text-anchor="middle" class="sub">事务队列</text>
+
+  <rect x="550" y="306" width="120" height="28" class="box"/>
+  <text x="610" y="324" text-anchor="middle" class="sub">超时处理</text>
+
+  <line x1="360" y1="344" x2="360" y2="374" class="line" marker-end="url(#ar)"/>
+  <text x="380" y="364" class="sub">串口读写</text>
+
+  <!-- Web Serial 层 -->
+  <rect x="140" y="376" width="440" height="44" class="hl"/>
+  <text x="360" y="403" text-anchor="middle" class="name">Web Serial API (navigator.serial)</text>
+</svg>

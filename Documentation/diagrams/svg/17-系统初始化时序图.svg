@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 480" font-family="'SimSun', 'Times New Roman', serif">
+  <rect id="bg" x="0" y="0" width="700" height="480" fill="#fff"/>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#000"/>
+    </marker>
+  </defs>
+  <style>
+    text { fill: #000; }
+    .box { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .hl  { fill: #e8e8e8; stroke: #000; stroke-width: 1.5; }
+    .title { font-size: 16px; font-weight: bold; }
+    .name { font-size: 13px; font-weight: bold; }
+    .sub  { font-size: 11px; }
+    .line { stroke: #000; stroke-width: 1.2; fill: none; }
+  </style>
+
+  <text x="350" y="28" text-anchor="middle" class="title">图 3.8  系统初始化时序图</text>
+
+  <!-- Step boxes in sequence -->
+  <rect x="220" y="50" width="260" height="38" class="box"/>
+  <text x="350" y="74" text-anchor="middle" class="name">HAL_Init() + 时钟配置 168MHz</text>
+
+  <line x1="350" y1="88" x2="350" y2="108" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="110" width="260" height="38" class="box"/>
+  <text x="350" y="134" text-anchor="middle" class="name">SysTick + 延时初始化</text>
+
+  <line x1="350" y1="148" x2="350" y2="168" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="170" width="260" height="44" class="box"/>
+  <text x="350" y="190" text-anchor="middle" class="name">UART 初始化</text>
+  <text x="350" y="206" text-anchor="middle" class="sub">USART1(调试) / USART2(Modbus) / USART3(IMU)</text>
+
+  <line x1="350" y1="214" x2="350" y2="234" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="236" width="260" height="38" class="box"/>
+  <text x="350" y="260" text-anchor="middle" class="name">ADC1 + DMA 连续采集初始化</text>
+
+  <line x1="350" y1="274" x2="350" y2="294" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="296" width="260" height="44" class="box"/>
+  <text x="350" y="316" text-anchor="middle" class="name">PWM 定时器初始化</text>
+  <text x="350" y="332" text-anchor="middle" class="sub">TIM4 / TIM8 / TIM3 / TIM1  50Hz</text>
+
+  <line x1="350" y1="340" x2="350" y2="360" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="362" width="260" height="38" class="box"/>
+  <text x="350" y="386" text-anchor="middle" class="name">ATK-MS901M 姿态传感器初始化</text>
+
+  <line x1="350" y1="400" x2="350" y2="420" class="line" marker-end="url(#ar)"/>
+
+  <rect x="220" y="422" width="260" height="44" class="hl"/>
+  <text x="350" y="442" text-anchor="middle" class="name">Modbus 从站初始化</text>
+  <text x="350" y="458" text-anchor="middle" class="sub">addr=1, 9600bps → eMBEnable()</text>
+
+  <!-- 左侧时间轴标注 -->
+  <line x1="190" y1="60" x2="190" y2="460" class="line" stroke-dasharray="4,3"/>
+  <text x="185" y="60" text-anchor="end" class="sub">t₀</text>
+  <text x="185" y="460" text-anchor="end" class="sub">t₇</text>
+  <text x="170" y="260" text-anchor="end" class="sub" transform="rotate(-90,170,260)">初始化顺序 →</text>
+</svg>

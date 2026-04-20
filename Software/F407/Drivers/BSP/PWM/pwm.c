@@ -288,6 +288,33 @@ void pwm_set_duty(uint8_t ch, uint16_t duty)
 }
 
 /**
+ * @brief       设置 PWM 定时器分组的频率参数
+ * @param       group: 定时器分组号 (PWM_GROUP_1 ~ PWM_GROUP_4)
+ * @param       arr: 自动重装载值 (Period)
+ * @param       psc: 预分频器值 (Prescaler)
+ * @note        频率 = Timer_CLK / (psc+1) / (arr+1)
+ *              G1(TIM4)/G3(TIM3): Timer_CLK = 84MHz  (APB1)
+ *              G2(TIM8)/G4(TIM1): Timer_CLK = 168MHz (APB2)
+ * @retval      无
+ */
+void pwm_set_frequency(uint8_t group, uint16_t arr, uint16_t psc)
+{
+    TIM_HandleTypeDef *handle = NULL;
+
+    switch (group) {
+        case PWM_GROUP_1: handle = &g_tim4_pwm_handle; break;
+        case PWM_GROUP_2: handle = &g_tim8_pwm_handle; break;
+        case PWM_GROUP_3: handle = &g_tim3_pwm_handle; break;
+        case PWM_GROUP_4: handle = &g_tim1_pwm_handle; break;
+        default: return;
+    }
+
+    __HAL_TIM_SET_AUTORELOAD(handle, arr);
+    __HAL_TIM_SET_PRESCALER(handle, psc);
+    handle->Instance->EGR = TIM_EGR_UG;    /* 产生更新事件，立即生效 */
+}
+
+/**
  * @brief       设置所有舵机/电调通道占空比
  * @param       duty: 占空比 (0-arr)
  * @retval      无

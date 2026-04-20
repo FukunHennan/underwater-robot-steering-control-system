@@ -262,6 +262,29 @@ export default function App() {
   const pollingRef = useRef(false)
   const timerRef = useRef<number | null>(null)
 
+  // MOCK MODE: inject demo data when ?mock is in URL
+  useEffect(() => {
+    if (!window.location.search.includes('mock')) return
+    setConnState('connected' as ConnectionState)
+    setSystem({ deviceId: 0x0407, fwVersion: 0x0300, runMode: 1, faultCode: 0, sysTick: 156320 })
+    setAttitude({ roll: 12.35, pitch: -3.78, yaw: 156.42, gyroX: 0.52, gyroY: -1.23, gyroZ: 0.08 })
+    setPwm({ servos: [1500, 1620, 1380, 1500, 1750, 1500, 1200, 1500], leds: [680, 250] })
+    setPwmFreq({ groups: [{ arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }] })
+    setAdc({ temps: [25.6, 18.3, 31.2, 22.8], voltage: 11.8, adcRaw: [3128, 2234, 3812, 2786, 3654] })
+    setBaro({ pressure: 101325, altitude: 2850, temperature: 24.6 })
+    setLocalServos([1500, 1620, 1380, 1500, 1750, 1500, 1200, 1500])
+    setLocalLeds([680, 250])
+    const hist: AttitudeData[] = []
+    for (let i = 0; i < 60; i++) {
+      hist.push({
+        roll: 12.35 + Math.sin(i * 0.15) * 5, pitch: -3.78 + Math.cos(i * 0.12) * 3,
+        yaw: 156.42 + Math.sin(i * 0.08) * 2, gyroX: 0.52 + Math.sin(i * 0.2) * 2,
+        gyroY: -1.23 + Math.cos(i * 0.18) * 1.5, gyroZ: 0.08 + Math.sin(i * 0.25) * 0.5
+      })
+    }
+    setAttHistory(hist)
+  }, [])
+
   useEffect(() => {
     client.onStateChange(setConnState)
     client.onLog(setLogs)

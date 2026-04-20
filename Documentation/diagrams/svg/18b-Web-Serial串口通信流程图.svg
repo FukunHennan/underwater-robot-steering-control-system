@@ -1,0 +1,83 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 500" font-family="'SimSun', 'Times New Roman', serif">
+  <rect id="bg" x="0" y="0" width="700" height="500" fill="#fff"/>
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#000"/>
+    </marker>
+  </defs>
+  <style>
+    text { fill: #000; }
+    .box { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .hl  { fill: #e8e8e8; stroke: #000; stroke-width: 1.5; }
+    .dia { fill: #fff; stroke: #000; stroke-width: 1.5; }
+    .title { font-size: 16px; font-weight: bold; }
+    .name { font-size: 13px; font-weight: bold; }
+    .sub  { font-size: 11px; }
+    .line { stroke: #000; stroke-width: 1.2; fill: none; }
+  </style>
+
+  <text x="350" y="28" text-anchor="middle" class="title">图 3.7  Web Serial 串口通信流程图</text>
+
+  <!-- Step 1 -->
+  <rect x="220" y="50" width="260" height="38" rx="18" class="box"/>
+  <text x="350" y="74" text-anchor="middle" class="name">用户点击 "连接" 按钮</text>
+
+  <line x1="350" y1="88" x2="350" y2="110" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 2 -->
+  <rect x="220" y="112" width="260" height="38" class="box"/>
+  <text x="350" y="136" text-anchor="middle" class="name">navigator.serial.requestPort()</text>
+
+  <line x1="350" y1="150" x2="350" y2="172" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 3 -->
+  <rect x="220" y="174" width="260" height="44" class="box"/>
+  <text x="350" y="192" text-anchor="middle" class="name">port.open({ baudRate: 9600 })</text>
+  <text x="350" y="208" text-anchor="middle" class="sub">8数据位 / 1停止位 / 无校验</text>
+
+  <line x1="350" y1="218" x2="350" y2="240" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 4 -->
+  <rect x="220" y="242" width="260" height="44" class="hl"/>
+  <text x="350" y="260" text-anchor="middle" class="name">获取读写流</text>
+  <text x="350" y="276" text-anchor="middle" class="sub">reader = readable.getReader()</text>
+
+  <line x1="350" y1="286" x2="350" y2="308" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 5: 连接成功 -->
+  <rect x="220" y="310" width="260" height="38" class="hl"/>
+  <text x="350" y="334" text-anchor="middle" class="name">status = 'connected'</text>
+
+  <line x1="350" y1="348" x2="350" y2="370" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 6: 数据收发 -->
+  <rect x="220" y="372" width="260" height="44" class="box"/>
+  <text x="350" y="390" text-anchor="middle" class="name">数据收发循环</text>
+  <text x="350" y="406" text-anchor="middle" class="sub">writer.write() / reader.read()</text>
+
+  <line x1="350" y1="416" x2="350" y2="438" class="line" marker-end="url(#ar)"/>
+
+  <!-- Step 7: 断开 -->
+  <rect x="220" y="440" width="260" height="44" class="box"/>
+  <text x="350" y="458" text-anchor="middle" class="name">断开连接</text>
+  <text x="350" y="474" text-anchor="middle" class="sub">释放流锁 → port.close()</text>
+
+  <!-- 右侧状态标注 -->
+  <rect x="520" y="100" width="160" height="110" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="600" y="120" text-anchor="middle" class="name">连接状态机</text>
+  <line x1="530" y1="126" x2="670" y2="126" class="line"/>
+  <text x="530" y="144" class="sub">disconnected</text>
+  <text x="530" y="162" class="sub">connecting</text>
+  <text x="530" y="180" class="sub">connected</text>
+  <text x="530" y="198" class="sub">error</text>
+  <polyline points="480,155 520,155" class="line" stroke-dasharray="3,3"/>
+
+  <!-- 左侧异常处理 -->
+  <rect x="20" y="360" width="170" height="70" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="105" y="380" text-anchor="middle" class="name">异常处理</text>
+  <line x1="30" y1="386" x2="180" y2="386" class="line"/>
+  <text x="30" y="404" class="sub">超时 500ms → 重试</text>
+  <text x="30" y="420" class="sub">端口丢失 → 自动断开</text>
+  <line x1="190" y1="394" x2="220" y2="394" class="line" stroke-dasharray="3,3"/>
+</svg>

@@ -41,6 +41,13 @@
 #define PWM_SERVO_ESC_CHANNELS    8     /* 舵机/电调通道数 */
 #define PWM_LED_CHANNELS          2     /* LED 通道数 */
 
+/* PWM 定时器分组定义（同组通道共享频率） */
+#define PWM_GROUP_1               1     /* TIM4: CH1-4  (APB1, 84MHz)  */
+#define PWM_GROUP_2               2     /* TIM8: CH5-6  (APB2, 168MHz) */
+#define PWM_GROUP_3               3     /* TIM3: CH7-8  (APB1, 84MHz)  */
+#define PWM_GROUP_4               4     /* TIM1: LED1-2 (APB2, 168MHz) */
+#define PWM_GROUP_COUNT           4     /* 分组总数 */
+
 /* 通道编号定义 */
 #define PWM_CH_SERVO_1            1
 #define PWM_CH_SERVO_2            2
@@ -164,6 +171,7 @@ extern TIM_HandleTypeDef g_tim8_pwm_handle;
 /* 函数声明 */
 void pwm_init(uint16_t arr, uint16_t psc);
 void pwm_set_duty(uint8_t ch, uint16_t duty);
+void pwm_set_frequency(uint8_t group, uint16_t arr, uint16_t psc);
 void pwm_set_all_servo_duty(uint16_t duty);
 void pwm_set_all_led_duty(uint16_t duty);
 
