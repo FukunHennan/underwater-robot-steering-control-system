@@ -19,5 +19,29 @@
 
 ### 待跟进
 
-- [ ] 论文图片引用路径待确认是否需从 svg/ 改回 png/
+- [x] 论文图片引用路径待确认 → 已统一为 `diagrams/png/`
+- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+
+---
+
+## 2026-04-21 第二次体检
+
+### 执行内容
+
+- [x] `Picture/` 目录合并到 `Documentation/diagrams/png/`，删除原目录
+- [x] 论文正文 10 处图片路径从 `../Picture/` 更新为 `diagrams/png/`
+- [x] `Hardware/` 目录清理，仅保留 `V1.0原理图.pdf`
+- [x] Dashboard 新增 `?mock` 模拟数据模式，生成 3 张截图
+- [x] 更新 `web-dashboard.md` 实体页面
+
+### 目录结构变更
+
+| 变更 | 说明 |
+|---|---|
+| `Picture/` → `Documentation/diagrams/png/` | 截图与流程图 PNG 统一存放 |
+| `Hardware/` 清理 | 仅保留原理图，后续存放 3D/BOM |
+
+### 待跟进
+
+- [ ] 6 张实物/硬件照片由用户拍摄后放入 `diagrams/png/`
 - [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
