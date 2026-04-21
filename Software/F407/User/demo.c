@@ -25,6 +25,7 @@
 #include "pwm.h"
 #include "atk_ms901m.h"
 #include <string.h>
+#include "kalman.h"
 
 /**
  * @brief       Demo Main Function - Modbus Mode
@@ -79,24 +80,56 @@ void demo_run(void)
     printf("[INFO] Waiting for Modbus requests...\r\n");
     printf("\r\n");
     
+    /* Initialize Kalman filters for attitude angles (Q=0.001, R=0.1) */
+    kalman_filter_t kf_roll, kf_pitch, kf_yaw;
+    kalman_init(&kf_roll,  0.001f, 0.1f, 0.0f);
+    kalman_init(&kf_pitch, 0.001f, 0.1f, 0.0f);
+    kalman_init(&kf_yaw,   0.001f, 0.1f, 0.0f);
+
+    /* Initialize Kalman filters for gyroscope (Q=0.01, R=0.05) */
+    kalman_filter_t kf_gyro_x, kf_gyro_y, kf_gyro_z;
+    kalman_init(&kf_gyro_x, 0.01f, 0.05f, 0.0f);
+    kalman_init(&kf_gyro_y, 0.01f, 0.05f, 0.0f);
+    kalman_init(&kf_gyro_z, 0.01f, 0.05f, 0.0f);
+
+    uint32_t last_tick = HAL_GetTick();
+    printf("[OK] Kalman filters initialized!\r\n\n");
+
     while (1) {
-        /* Read MS901M attitude (non-blocking: 5ms timeout) */
+        /* Calculate dt (seconds) */
+        uint32_t now = HAL_GetTick();
+        float dt = (now - last_tick) / 1000.0f;
+        if (dt < 0.001f) dt = 0.005f;  /* Safeguard: minimum 1ms */
+        last_tick = now;
+
+        /* Read MS901M attitude + gyro, apply Kalman filter */
         {
             atk_ms901m_attitude_data_t att;
             atk_ms901m_gyro_data_t gyro;
-
-            if (atk_ms901m_get_attitude(&att, 5) == ATK_MS901M_EOK)
-            {
-                modbus_set_register_float(REG_ROLL,  att.roll);
-                modbus_set_register_float(REG_PITCH, att.pitch);
-                modbus_set_register_float(REG_YAW,   att.yaw);
-            }
+            float filtered_roll, filtered_pitch, filtered_yaw;
+            float filtered_gx, filtered_gy, filtered_gz;
 
             if (atk_ms901m_get_gyro_accelerometer(&gyro, NULL, 5) == ATK_MS901M_EOK)
             {
-                modbus_set_register_float(REG_GYRO_X, gyro.x);
-                modbus_set_register_float(REG_GYRO_Y, gyro.y);
-                modbus_set_register_float(REG_GYRO_Z, gyro.z);
+                filtered_gx = kalman_update_simple(&kf_gyro_x, gyro.x);
+                filtered_gy = kalman_update_simple(&kf_gyro_y, gyro.y);
+                filtered_gz = kalman_update_simple(&kf_gyro_z, gyro.z);
+
+                modbus_set_register_float(REG_GYRO_X, filtered_gx);
+                modbus_set_register_float(REG_GYRO_Y, filtered_gy);
+                modbus_set_register_float(REG_GYRO_Z, filtered_gz);
+            }
+
+            if (atk_ms901m_get_attitude(&att, 5) == ATK_MS901M_EOK)
+            {
+                /* Use gyro as prediction model, attitude angle as observation */
+                filtered_roll  = kalman_update(&kf_roll,  att.roll,  filtered_gx, dt);
+                filtered_pitch = kalman_update(&kf_pitch, att.pitch, filtered_gy, dt);
+                filtered_yaw   = kalman_update(&kf_yaw,   att.yaw,   filtered_gz, dt);
+
+                modbus_set_register_float(REG_ROLL,  filtered_roll);
+                modbus_set_register_float(REG_PITCH, filtered_pitch);
+                modbus_set_register_float(REG_YAW,   filtered_yaw);
             }
         }
 

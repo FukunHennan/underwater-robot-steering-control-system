@@ -48,7 +48,7 @@
 /* ADC 参数配置 */
 #define ADC_REF_VOLTAGE           3.3f
 #define ADC_MAX_VALUE             4095
-#define ADC_VOLTAGE_DIVIDE_RATIO  3.0f       /* 电压检测分压比 */
+#define ADC_VOLTAGE_DIVIDE_RATIO  4.0f       /* 电压检测分压比 (R17=30K, R18=10K) */
 
 /* ADC 句柄 */
 extern ADC_HandleTypeDef g_adc1_handle;
