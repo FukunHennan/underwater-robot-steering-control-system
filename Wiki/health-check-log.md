@@ -160,12 +160,39 @@ Documentation/
 | `Documentation/take_screenshot.py` | 一次性截图脚本 |
 | `Output/*.map *.lst` | 编译临时产物 |
 
+### 目录整理
+
+- 新建 `diagrams/photos/` 目录，将 11 张实物照片/截图从 `png/` 分离
+- docx 文件统一归入 `Documentation/docx/`
+- 新增 `公式汇总.md` + `.docx`（12 个公式，用于 Word 粘贴）
+- 删除过时 `Documentation/README.md`、空 `Output/` 目录
+
 ### 其他变更
 
 - 论文正文 3 处"笔者"→"本文"
+- 论文正文 9 处图片路径更新（`png/` → `photos/`）
+- 整体调试图片路径修复（`diagrams/png/整体调试.png` → `diagrams/photos/整体调试.jpg`）
+
+### Documentation 目录结构（当前）
+
+```
+Documentation/
+├── 论文正文.md
+├── 论文大纲.md
+├── diagrams/
+│   ├── svg/      (11 个流程图源文件)
+│   ├── png/      (18 个流程图/原理图 PNG)
+│   └── photos/   (11 张实物照片/截图)
+└── docx/
+    ├── 论文正文.docx
+    ├── 公式汇总.docx + .md
+    ├── reference.docx
+    ├── 水下智能转向系统-模板.docx
+    └── 水下智能转向系统-陈富坤.docx
+```
 
 ### 待跟进
 
-- [ ] 补充 3 张调试照片：输入电压.png、输出电压.png、整体调试.png
+- [x] 补充 3 张调试照片：输入电压、输出电压、整体调试 → 已全部补充
 - [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
 - [ ] 如需恢复参考文献，可从 git 历史中找回

@@ -5,6 +5,7 @@ deviceName: null
 packDir: null
 srcDirs:
   - Drivers/BSP/Modbus
+  - Drivers/BSP/Kalman
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -162,6 +163,7 @@ targets:
         - Drivers/BSP/Modbus
         - .cmsis/include
         - RTE/_ATK-MS901M
+        - Drivers/BSP/Kalman
       libList: []
     excludeList: []
     settings: {}
