@@ -18,7 +18,8 @@ Wiki/
 ├── entities/              ← 实体页面（项目核心知识）
 │   ├── modbus-register-map.md
 │   ├── svg-flowchart-skill.md
-│   └── web-dashboard.md
+│   ├── web-dashboard.md
+│   └── adc-calibration.md
 └── health-check-log.md    ← 体检记录
 ```
 

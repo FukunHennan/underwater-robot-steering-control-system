@@ -196,3 +196,60 @@ Documentation/
 - [x] 补充 3 张调试照片：输入电压、输出电压、整体调试 → 已全部补充
 - [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
 - [ ] 如需恢复参考文献，可从 git 历史中找回
+
+---
+
+## 2026-04-25 第六次体检（ADC 校准 + 上位机重构 + 自动重连）
+
+### 执行内容
+
+- [x] **下位机**：新增 ADC 校准模块 `Drivers/BSP/Calib/`（calib.c/.h，52 字节数据 + magic + CRC）
+- [x] **下位机**：Modbus 寄存器扩展 78→102（+22 个校准寄存器 0x0050-0x0065）
+- [x] **下位机**：Flash 写入握手方案——延迟到主循环 + eMBDisable/HAL_Delay/eMBInit/eMBEnable，解决 CRC 失败
+- [x] **下位机**：Flash 扇区从 Sector 7 (128KB, 1.5s) 换到 Sector 2 (16KB, 0.3s)
+- [x] **下位机**：mbrtu.c 修复 #177-D 未使用变量警告
+- [x] **上位机**：单页改 7 页 Tab（首页/系统/姿态/PWM/ADC/气压计/高级）
+- [x] **上位机**：舵机控制增强（滑块+占空比+角度+零点，localStorage 保存零点）
+- [x] **上位机**：ADC 校准面板（5 通道 gain/offset + 应用/一键反算/保存 Flash/恢复默认）
+- [x] **上位机**：自动重连 ModbusClient（双触发 + 软/硬重连 + 指数退避 1→30s 最多 10 次）
+- [x] **上位机**：Flash 写入握手（flashBusyRef 停轮询 + 静默 1500ms + CAL_STATUS 轮询 5s）
+- [x] **上位机**：全局字号放大（Metric text-xl→2xl, 3D h-48→72, 波形 600×200→800×280）
+- [x] **Wiki**：更新 modbus-register-map 到 102 寄存器 + 新增 adc-calibration 实体 + web-dashboard 7 页结构
+- [x] **Git**：4 个 commit 提交并推送到 origin/master（gitignore/f407/dashboard/docs）
+
+### 关键技术决策
+
+| 决策 | 理由 |
+|---|---|
+| Flash 用 Sector 2 | 固件仅占 Sector 0-1 (25KB)，Sector 2 空闲且擦除 0.3s（Sector 5-7 要 1.5s 阻塞 Modbus） |
+| Flash 擦写延迟到主循环 | 回调内同步写 Flash 会阻塞 eMBPoll 发响应，Master 超时后串口残帧导致 CRC 失败 |
+| 重连触发双条件 | 仅监听物理断开无法应对 MCU 重启但 USB 仍在的情况；连续 3 次通讯失败兜底 |
+| 软重连 + 硬重连 | 软：同 port close/open，应对 MCU 复位；硬：getPorts() 找回授权，应对 USB 重枚举 |
+
+### 新增实体页面
+
+- `entities/adc-calibration.md` — ADC 校准完整文档（Flash 布局、握手方案、API）
+
+### 目录结构变更
+
+| 变更 | 说明 |
+|---|---|
+| `Wiki/entities/adc-calibration.md` 新建 | 校准模块专题 |
+| `Software/modbus-dashboard/.gitignore` | 新增 `*.tsbuildinfo` |
+| `Software/F407/Drivers/BSP/Calib/` | 新模块目录 |
+
+### 待跟进
+
+- [ ] 待用户实测：Flash 写入握手方案验证（需烧录新固件）
+- [ ] 待用户实测：自动重连（拔 USB / 按 MCU Reset 两个场景）
+- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+- [ ] 论文若涉及校准章节，需更新引用 adc-calibration 实体
+
+### Git commit 历史
+
+```
+2f9dd04  docs: 论文正文更新 + 上位机新截图 + 卡尔曼流程图 + 公式汇总并入
+606d678  feat(dashboard): 7 页 Tab 重构 + 舵机角度/零点 + Flash 握手 + 自动重连
+cf46ba6  feat(f407): ADC 校准模块 + Flash 持久化 + 握手式写入
+88a4343  chore(dashboard): ignore tsbuildinfo
+```
