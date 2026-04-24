@@ -116,6 +116,14 @@ export function regToInt16(value: number): number {
   return value > 32767 ? value - 65536 : value;
 }
 
+/** Split IEEE 754 float into 2 Big-Endian word-ordered registers [high, low] */
+export function floatToRegs(v: number): [number, number] {
+  const buf = new ArrayBuffer(4);
+  const view = new DataView(buf);
+  view.setFloat32(0, v, false); // Big-Endian
+  return [view.getUint16(0, false), view.getUint16(2, false)];
+}
+
 // ======================== Register map ========================
 
 export const REG = {
@@ -169,7 +177,36 @@ export const REG = {
   ALTITUDE_H: 0x004a,
   ALTITUDE_L: 0x004b,
   BARO_TEMP: 0x004c,
+
+  /* ADC Calibration (0x0050 - 0x0065) — float = 2 regs each, big-endian word order */
+  CAL_VOLT_GAIN: 0x0050,
+  CAL_VOLT_OFF:  0x0052,
+  CAL_AN1_GAIN:  0x0054,
+  CAL_AN1_OFF:   0x0056,
+  CAL_AN2_GAIN:  0x0058,
+  CAL_AN2_OFF:   0x005a,
+  CAL_AN3_GAIN:  0x005c,
+  CAL_AN3_OFF:   0x005e,
+  CAL_AN4_GAIN:  0x0060,
+  CAL_AN4_OFF:   0x0062,
+  CAL_CMD:       0x0064,
+  CAL_STATUS:    0x0065,
 } as const;
+
+/** Calibration channel indices (match firmware CALIB_CH_*) */
+export const CAL_CH = {
+  VOLTAGE: 0,
+  ANALOG1: 1,
+  ANALOG2: 2,
+  ANALOG3: 3,
+  ANALOG4: 4,
+} as const;
+
+export const CAL_CH_NAMES = ['VOLTAGE', 'ANALOG1', 'ANALOG2', 'ANALOG3', 'ANALOG4'] as const;
+
+/** Calibration command register values (match firmware CALIB_CMD_*) */
+export const CAL_CMD_SAVE  = 0x5A5A;
+export const CAL_CMD_RESET = 0xA5A5;
 
 // ======================== Serial + Modbus class ========================
 
@@ -181,6 +218,12 @@ export interface ModbusLog {
   data: string;
 }
 
+export interface ReconnectInfo {
+  attempt: number;
+  max: number;
+  reason: 'physical' | 'comm-error';
+}
+
 export class ModbusClient {
   private port: SerialPort | null = null;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -190,6 +233,21 @@ export class ModbusClient {
   private _logs: ModbusLog[] = [];
   private _onStateChange?: (state: ConnectionState) => void;
   private _onLog?: (logs: ModbusLog[]) => void;
+  private _onReconnect?: (info: ReconnectInfo | null) => void;
+
+  /* ---- Reconnect state ---- */
+  private lastBaudRate = 9600;
+  private lastPortInfo: SerialPortInfo | null = null;
+  private consecutiveFailures = 0;
+  private reconnecting = false;
+  private userDisconnected = false;
+  private disconnectHandler: (() => void) | null = null;
+  private serialConnectHandler: ((ev: Event) => void) | null = null;
+
+  /* Failure threshold and backoff schedule */
+  private static readonly FAIL_THRESHOLD = 3;
+  private static readonly MAX_ATTEMPTS = 10;
+  private static readonly BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000];
 
   /* ---- Transaction queue (Modbus is half-duplex, one at a time) ---- */
   private _queue: Array<{ fn: () => Promise<any>; resolve: (v: any) => void; reject: (e: any) => void }> = [];
@@ -208,8 +266,10 @@ export class ModbusClient {
     const { fn, resolve, reject } = this._queue.shift()!;
     try {
       const result = await fn();
+      this.noteCommResult(true);
       resolve(result);
     } catch (e) {
+      this.noteCommResult(false);
       reject(e);
     }
     /* Inter-frame gap: 15ms (> 3.5 char times at 9600 baud ≈ 4ms) */
@@ -223,6 +283,13 @@ export class ModbusClient {
 
   onStateChange(cb: (s: ConnectionState) => void) { this._onStateChange = cb; }
   onLog(cb: (logs: ModbusLog[]) => void) { this._onLog = cb; }
+  /** Reconnect progress callback; emits null when reconnect finishes/aborts */
+  onReconnect(cb: (info: ReconnectInfo | null) => void) { this._onReconnect = cb; }
+
+  clearLog() {
+    this._logs = [];
+    this._onLog?.(this._logs);
+  }
 
   private setState(s: ConnectionState) {
     this._state = s;
@@ -231,7 +298,7 @@ export class ModbusClient {
 
   private addLog(dir: 'TX' | 'RX' | 'ERR', data: string) {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    this._logs = [...this._logs.slice(-99), { time, dir, data }];
+    this._logs = [...this._logs.slice(-999), { time, dir, data }];
     this._onLog?.(this._logs);
   }
 
@@ -244,11 +311,17 @@ export class ModbusClient {
       throw new Error('浏览器不支持 Web Serial API，请使用 Chrome/Edge');
     }
     try {
+      this.userDisconnected = false;
       this.setState('connecting');
       this.port = await navigator.serial.requestPort();
       await this.port.open({ baudRate, dataBits: 8, stopBits: 1, parity: 'none' });
       this.writer = this.port.writable!.getWriter();
       this.reader = this.port.readable!.getReader();
+      this.lastBaudRate = baudRate;
+      this.lastPortInfo = this.port.getInfo();
+      this.consecutiveFailures = 0;
+      this.attachDisconnectListener();
+      this.attachSerialConnectListener();
       this.setState('connected');
       this.addLog('TX', `已连接 (${baudRate} baud, 8N1)`);
     } catch (e: any) {
@@ -259,16 +332,176 @@ export class ModbusClient {
   }
 
   async disconnect() {
-    try {
-      this.reader?.releaseLock();
-      this.writer?.releaseLock();
-      await this.port?.close();
-    } catch { /* ignore */ }
+    this.userDisconnected = true;   /* 用户主动断开，禁止自动重连 */
+    this.reconnecting = false;
+    this.detachSerialConnectListener();
+    this.detachDisconnectListener();
+    await this.softClose();
     this.port = null;
-    this.reader = null;
-    this.writer = null;
+    this.lastPortInfo = null;
+    this.consecutiveFailures = 0;
+    this._onReconnect?.(null);
     this.setState('disconnected');
     this.addLog('TX', '已断开');
+  }
+
+  /** Release locks and close port, tolerant to errors */
+  private async softClose() {
+    try { this.reader?.releaseLock(); } catch { /* ignore */ }
+    try { this.writer?.releaseLock(); } catch { /* ignore */ }
+    this.reader = null;
+    this.writer = null;
+    try { await this.port?.close(); } catch { /* ignore */ }
+  }
+
+  /** Clear all pending requests in the queue (reject them with reason) */
+  private flushQueue(reason: string) {
+    const pending = this._queue.splice(0);
+    for (const item of pending) {
+      item.reject(new Error(reason));
+    }
+  }
+
+  private attachDisconnectListener() {
+    if (!this.port || this.disconnectHandler) return;
+    this.disconnectHandler = () => {
+      this.addLog('ERR', '设备物理断开');
+      this.setState('connecting');
+      this.flushQueue('设备已断开');
+      this.tryReconnect('physical');
+    };
+    /* SerialPort inherits EventTarget */
+    (this.port as unknown as EventTarget).addEventListener('disconnect', this.disconnectHandler);
+  }
+
+  private detachDisconnectListener() {
+    if (this.port && this.disconnectHandler) {
+      (this.port as unknown as EventTarget).removeEventListener('disconnect', this.disconnectHandler);
+    }
+    this.disconnectHandler = null;
+  }
+
+  private attachSerialConnectListener() {
+    if (this.serialConnectHandler) return;
+    this.serialConnectHandler = (ev: Event) => {
+      if (!this.reconnecting) return;
+      const p = (ev as unknown as { port: SerialPort }).port;
+      if (!p || !this.lastPortInfo) return;
+      const info = p.getInfo();
+      if (info.usbVendorId === this.lastPortInfo.usbVendorId &&
+          info.usbProductId === this.lastPortInfo.usbProductId) {
+        this.addLog('RX', '检测到设备重新插入');
+        /* The backoff loop picks this up via getPorts() on its next iteration;
+           no need to bypass the loop — keeps state machine simple. */
+      }
+    };
+    navigator.serial.addEventListener('connect', this.serialConnectHandler);
+  }
+
+  private detachSerialConnectListener() {
+    if (this.serialConnectHandler) {
+      navigator.serial.removeEventListener('connect', this.serialConnectHandler);
+    }
+    this.serialConnectHandler = null;
+  }
+
+  /** Auto-reconnect driver. Idempotent: duplicate calls are no-op. */
+  private async tryReconnect(reason: 'physical' | 'comm-error') {
+    if (this.reconnecting || this.userDisconnected) return;
+    this.reconnecting = true;
+    this.setState('connecting');
+
+    const MAX = ModbusClient.MAX_ATTEMPTS;
+    for (let i = 0; i < MAX; i++) {
+      if (this.userDisconnected) break;
+
+      const attempt = i + 1;
+      this._onReconnect?.({ attempt, max: MAX, reason });
+      this.addLog('TX', `重连尝试 ${attempt}/${MAX} (${reason})`);
+
+      /* Release and re-open */
+      await this.softClose();
+      await new Promise(r => setTimeout(r, 300));
+
+      if (await this.attemptOpen()) {
+        this.reconnecting = false;
+        this.consecutiveFailures = 0;
+        this._onReconnect?.(null);
+        this.setState('connected');
+        this.addLog('RX', `重连成功 (第 ${attempt} 次)`);
+        return;
+      }
+
+      /* Wait before next attempt with backoff */
+      if (i < MAX - 1) {
+        await new Promise(r => setTimeout(r, ModbusClient.BACKOFF_MS[i]));
+      }
+    }
+
+    /* All attempts exhausted */
+    this.reconnecting = false;
+    this._onReconnect?.(null);
+    this.port = null;
+    this.setState('disconnected');
+    this.addLog('ERR', `重连 ${MAX} 次失败，请手动重新连接`);
+  }
+
+  /** Try to open either the existing port (soft) or a re-enumerated port (hard). */
+  private async attemptOpen(): Promise<boolean> {
+    const baud = this.lastBaudRate;
+    const opts: SerialOptions = { baudRate: baud, dataBits: 8 as const, stopBits: 1 as const, parity: 'none' };
+
+    /* Soft reconnect: existing port object still valid (MCU reset but USB-UART alive) */
+    if (this.port) {
+      try {
+        await this.port.open(opts);
+        this.writer = this.port.writable!.getWriter();
+        this.reader = this.port.readable!.getReader();
+        this.attachDisconnectListener();
+        return true;
+      } catch {
+        /* Fall through to hard reconnect */
+      }
+    }
+
+    /* Hard reconnect: device was re-enumerated, find it via authorized ports */
+    try {
+      const ports = await navigator.serial.getPorts();
+      let target: SerialPort | undefined;
+      if (this.lastPortInfo) {
+        const { usbVendorId, usbProductId } = this.lastPortInfo;
+        target = ports.find(p => {
+          const info = p.getInfo();
+          return info.usbVendorId === usbVendorId && info.usbProductId === usbProductId;
+        });
+      }
+      if (!target && ports.length === 1) target = ports[0];
+      if (!target) return false;
+
+      await target.open(opts);
+      this.port = target;
+      this.writer = target.writable!.getWriter();
+      this.reader = target.readable!.getReader();
+      this.attachDisconnectListener();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Called by transact() on success/failure to drive auto-reconnect */
+  private noteCommResult(ok: boolean) {
+    if (ok) {
+      this.consecutiveFailures = 0;
+      return;
+    }
+    if (this.reconnecting || this.userDisconnected) return;
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= ModbusClient.FAIL_THRESHOLD) {
+      this.addLog('ERR', `连续 ${this.consecutiveFailures} 次通讯失败，启动自动重连`);
+      this.flushQueue('通讯失败，正在重连');
+      this.tryReconnect('comm-error');
+    }
   }
 
   /** Send frame and collect response with timeout (must be called inside queue) */
@@ -396,7 +629,7 @@ export class ModbusClient {
         regToInt16(regs[2]) / 10,
         regToInt16(regs[3]) / 10,
       ],
-      voltage: regToInt16(regs[4]) / 10,
+      voltage: regToInt16(regs[4]) / 100,
       adcRaw: regs.slice(5, 10),
     };
   }
@@ -409,5 +642,61 @@ export class ModbusClient {
       altitude: regsToInt32(regs[2], regs[3]),
       temperature: regsToFloat(regs[4], regs[5]),
     };
+  }
+
+  /**
+   * Read all calibration parameters (0x0050-0x0065)
+   * @returns { gains, offsets, status } — 5 channels in order: VOLTAGE, ANALOG1..4
+   */
+  async readCalibration() {
+    /* 20 regs for gain/offset pairs + CMD(1) + STATUS(1) = 22 regs */
+    const regs = await this.readHoldingRegisters(REG.CAL_VOLT_GAIN, 22);
+    const gains: number[] = [];
+    const offsets: number[] = [];
+    for (let ch = 0; ch < 5; ch++) {
+      const base = ch * 4;
+      gains.push(regsToFloat(regs[base], regs[base + 1]));
+      offsets.push(regsToFloat(regs[base + 2], regs[base + 3]));
+    }
+    return {
+      gains,
+      offsets,
+      status: regs[21], // REG.CAL_STATUS is the 22nd register (index 21)
+    };
+  }
+
+  /** Write gain for a single calibration channel (0..4) */
+  async writeCalibGain(ch: number, gain: number): Promise<void> {
+    if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
+    const addr = REG.CAL_VOLT_GAIN + ch * 4;
+    const [hi, lo] = floatToRegs(gain);
+    await this.writeMultipleRegisters(addr, [hi, lo]);
+  }
+
+  /** Write offset for a single calibration channel (0..4) */
+  async writeCalibOffset(ch: number, offset: number): Promise<void> {
+    if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
+    const addr = REG.CAL_VOLT_GAIN + ch * 4 + 2;
+    const [hi, lo] = floatToRegs(offset);
+    await this.writeMultipleRegisters(addr, [hi, lo]);
+  }
+
+  /** Write both gain and offset for a channel in one FC16 transaction */
+  async writeCalibChannel(ch: number, gain: number, offset: number): Promise<void> {
+    if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
+    const addr = REG.CAL_VOLT_GAIN + ch * 4;
+    const [gh, gl] = floatToRegs(gain);
+    const [oh, ol] = floatToRegs(offset);
+    await this.writeMultipleRegisters(addr, [gh, gl, oh, ol]);
+  }
+
+  /** Save current calibration RAM values to Flash (persistent) */
+  async saveCalibToFlash(): Promise<void> {
+    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_SAVE);
+  }
+
+  /** Reset all calibration channels to default (gain=1.0, offset=0.0). RAM only, not saved to Flash. */
+  async resetCalibToDefault(): Promise<void> {
+    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_RESET);
   }
 }
