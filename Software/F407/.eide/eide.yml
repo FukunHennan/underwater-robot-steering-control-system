@@ -6,6 +6,7 @@ packDir: null
 srcDirs:
   - Drivers/BSP/Modbus
   - Drivers/BSP/Kalman
+  - Drivers/BSP/Calib
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -164,6 +165,7 @@ targets:
         - .cmsis/include
         - RTE/_ATK-MS901M
         - Drivers/BSP/Kalman
+        - Drivers/BSP/Calib
       libList: []
     excludeList: []
     settings: {}
@@ -181,7 +183,7 @@ targets:
           beforeBuildTasks:
             - name: Inject Modbus Sources
               abortAfterFailed: true
-              command: powershell -ExecutionPolicy Bypass -Command "$p='${OutDir}\\builder.params'; $c=[System.IO.File]::ReadAllText($p,[System.Text.Encoding]::UTF8); if($c -notmatch 'Modbus/mb\\.c'){$c=$c.Replace('\"User/stm32f4xx_it.c\"','\"User/stm32f4xx_it.c\",\"Drivers/BSP/Modbus/mb.c\",\"Drivers/BSP/Modbus/mbcrc.c\",\"Drivers/BSP/Modbus/mbfuncholding.c\",\"Drivers/BSP/Modbus/mbrtu.c\",\"Drivers/BSP/Modbus/mbutils.c\",\"Drivers/BSP/Modbus/modbus.c\",\"Drivers/BSP/Modbus/port.c\"');[System.IO.File]::WriteAllText($p,$c,[System.Text.Encoding]::UTF8)}"
+              command: powershell -ExecutionPolicy Bypass -Command "$p='${OutDir}\\builder.params'; $c=[System.IO.File]::ReadAllText($p,[System.Text.Encoding]::UTF8); if($c -notmatch 'Modbus/mb\\.c'){$c=$c.Replace('"User/stm32f4xx_it.c"','"User/stm32f4xx_it.c","Drivers/BSP/Modbus/mb.c","Drivers/BSP/Modbus/mbcrc.c","Drivers/BSP/Modbus/mbfuncholding.c","Drivers/BSP/Modbus/mbrtu.c","Drivers/BSP/Modbus/mbutils.c","Drivers/BSP/Modbus/modbus.c","Drivers/BSP/Modbus/port.c","Drivers/BSP/Calib/calib.c"');[System.IO.File]::WriteAllText($p,$c,[System.Text.Encoding]::UTF8)}"
               disable: false
               stopBuildAfterFailed: true
           c/cpp-compiler:

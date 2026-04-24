@@ -26,6 +26,7 @@
 #include "atk_ms901m.h"
 #include <string.h>
 #include "kalman.h"
+#include "calib.h"
 
 /**
  * @brief       Demo Main Function - Modbus Mode
@@ -64,6 +65,11 @@ void demo_run(void)
     {
         printf("[WARN] MS901M init failed (sensor not connected?)\r\n\n");
     }
+
+    /* Initialize Calibration (load from Flash or defaults) */
+    printf("[INFO] Loading ADC calibration...\r\n");
+    calib_init();
+    printf("[OK] Calibration loaded (magic=0x%08X)\r\n\n", (unsigned int)g_calib.magic);
 
     /* Initialize Modbus */
     printf("[INFO] Initializing Modbus...\r\n");

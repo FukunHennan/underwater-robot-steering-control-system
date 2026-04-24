@@ -86,6 +86,21 @@
  *  0x004B ALTITUDE_L     R    Altitude low  16-bit
  *  0x004C BARO_TEMP_H    R    Temperature float high (IEEE 754, deg C)
  *  0x004D BARO_TEMP_L    R    Temperature float low
+ *
+ *  ADC Calibration (0x0050 - 0x0065)  y = gain * x + offset
+ *    All gain/offset are IEEE 754 float (2 regs, big-endian word order)
+ *  0x0050 CAL_VOLT_GAIN   R/W  VOLTAGE gain   (default 1.0)
+ *  0x0052 CAL_VOLT_OFF    R/W  VOLTAGE offset (default 0.0)
+ *  0x0054 CAL_AN1_GAIN    R/W  ANALOG1 gain
+ *  0x0056 CAL_AN1_OFF     R/W  ANALOG1 offset
+ *  0x0058 CAL_AN2_GAIN    R/W
+ *  0x005A CAL_AN2_OFF     R/W
+ *  0x005C CAL_AN3_GAIN    R/W
+ *  0x005E CAL_AN3_OFF     R/W
+ *  0x0060 CAL_AN4_GAIN    R/W
+ *  0x0062 CAL_AN4_OFF     R/W
+ *  0x0064 CAL_CMD         R/W  Write 0x5A5A = save to Flash, 0xA5A5 = reset
+ *  0x0065 CAL_STATUS      R    0=idle, 1=saved, 0xFF=error
  * ============================================================ */
 
 /* System registers: 0x0000 - 0x0005 */
@@ -145,8 +160,22 @@
 #define REG_ALTITUDE_L        75     /* 0x004B Altitude low              */
 #define REG_BARO_TEMP         76     /* 0x004C-0x004D Temperature (float, deg C) */
 
+/* ADC Calibration registers: 0x0050 - 0x0065 (float = 2 regs each) */
+#define REG_CAL_VOLT_GAIN     80     /* 0x0050-0x0051 */
+#define REG_CAL_VOLT_OFF      82     /* 0x0052-0x0053 */
+#define REG_CAL_AN1_GAIN      84     /* 0x0054-0x0055 */
+#define REG_CAL_AN1_OFF       86     /* 0x0056-0x0057 */
+#define REG_CAL_AN2_GAIN      88     /* 0x0058-0x0059 */
+#define REG_CAL_AN2_OFF       90     /* 0x005A-0x005B */
+#define REG_CAL_AN3_GAIN      92     /* 0x005C-0x005D */
+#define REG_CAL_AN3_OFF       94     /* 0x005E-0x005F */
+#define REG_CAL_AN4_GAIN      96     /* 0x0060-0x0061 */
+#define REG_CAL_AN4_OFF       98     /* 0x0062-0x0063 */
+#define REG_CAL_CMD           100    /* 0x0064 */
+#define REG_CAL_STATUS        101    /* 0x0065 */
+
 /* Total register count */
-#define REG_HOLDING_MAX       78
+#define REG_HOLDING_MAX       102
 
 void modbus_init(void);
 void modbus_process(void);
