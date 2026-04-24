@@ -43,9 +43,9 @@
 
 ### 待跟进
 
-- [x] 6 张实物/硬件照片 → 已补充 STM32F407 实物图、ATK-MS901M 实物图、PCB 连接视图、3D 渲染图
-- [ ] 仍缺 3 张照片：输入电压、输出电压、整体调试
-- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+- [X] 6 张实物/硬件照片 → 已补充 STM32F407 实物图、ATK-MS901M 实物图、PCB 连接视图、3D 渲染图
+- [X] 仍缺 3 张照片：输入电压、输出电压、整体调试
+- [X] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
 
 ---
 
@@ -53,10 +53,10 @@
 
 ### 执行内容
 
-- [x] 新增实物图：STM32F407VET6、ATK-MS901M、PCB连接视图、3D渲染图
-- [x] 论文新增 2.2.6 PCB电路板设计小节（图2.4、图2.5）
-- [x] 删除执行器实物图引用（不需要）
-- [x] Documentation 目录大清理：
+- [X] 新增实物图：STM32F407VET6、ATK-MS901M、PCB连接视图、3D渲染图
+- [X] 论文新增 2.2.6 PCB电路板设计小节（图2.4、图2.5）
+- [X] 删除执行器实物图引用（不需要）
+- [X] Documentation 目录大清理：
   - 删除旧 md：`MODBUS_DOC.md`、`硬件系统流程图.md`、`论文关键代码与材料清单.md`、`设备功能清单.md`、`水下智能转向系统-陈富坤.md`
   - 删除 `media/`（pandoc 临时产物）
   - docx 文件移入 `docx/` 子文件夹
@@ -79,8 +79,8 @@ Documentation/
 
 ### 待跟进
 
-- [ ] 补充 3 张调试照片：输入电压.png、输出电压.png、整体调试.png
-- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+- [X] 补充 3 张调试照片：输入电压.png、输出电压.png、整体调试.png
+- [X] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
 
 ---
 
@@ -88,26 +88,26 @@ Documentation/
 
 ### 执行内容
 
-- [x] V1.0原理图PDF转PNG，6页原理图全部插入论文第2章对应小节
-- [x] 电源系统章节重写：先推导VIN_MAX=13.2V（电压检测），再推导VCC-ADJ可调范围2.35V~VIN
-- [x] 新增LM2596S-5.0固定5V电源和AMS1117-3.3描述
-- [x] 删除2.2.6 PCB电路板设计小节及图2.10/2.11
-- [x] ADC分压比代码常量从3.0修正为4.0（adc.h）
-- [x] 图编号重新整理：2.1~2.9连续
+- [X] V1.0原理图PDF转PNG，6页原理图全部插入论文第2章对应小节
+- [X] 电源系统章节重写：先推导VIN_MAX=13.2V（电压检测），再推导VCC-ADJ可调范围2.35V~VIN
+- [X] 新增LM2596S-5.0固定5V电源和AMS1117-3.3描述
+- [X] 删除2.2.6 PCB电路板设计小节及图2.10/2.11
+- [X] ADC分压比代码常量从3.0修正为4.0（adc.h）
+- [X] 图编号重新整理：2.1~2.9连续
 
 ### 论文第2章图编号（当前）
 
-| 图号 | 内容 | 来源 |
-|---|---|---|
-| 2.1 | 系统硬件总体架构 | SVG |
-| 2.2 | STM32F407VET6实物图 | 照片 |
-| 2.3 | 主控部分原理图 | 原理图P4 |
-| 2.4 | ATK-MS901M模块实物图 | 照片 |
-| 2.5 | IMU姿态检测模块原理图 | 原理图P3 |
-| 2.6 | 舵机与电调接口原理图 | 原理图P1 |
-| 2.7 | 电源系统原理图 | 原理图P6 |
-| 2.8 | ADC模拟量检测接口原理图 | 原理图P2 |
-| 2.9 | 外接设备接口原理图 | 原理图P5 |
+| 图号 | 内容                    | 来源     |
+| ---- | ----------------------- | -------- |
+| 2.1  | 系统硬件总体架构        | SVG      |
+| 2.2  | STM32F407VET6实物图     | 照片     |
+| 2.3  | 主控部分原理图          | 原理图P4 |
+| 2.4  | ATK-MS901M模块实物图    | 照片     |
+| 2.5  | IMU姿态检测模块原理图   | 原理图P3 |
+| 2.6  | 舵机与电调接口原理图    | 原理图P1 |
+| 2.7  | 电源系统原理图          | 原理图P6 |
+| 2.8  | ADC模拟量检测接口原理图 | 原理图P2 |
+| 2.9  | 外接设备接口原理图      | 原理图P5 |
 
 ### diagrams/png 新增文件
 
@@ -116,8 +116,8 @@ Documentation/
 
 ### 待跟进
 
-- [ ] 补充 3 张调试照片：输入电压.png、输出电压.png、整体调试.png
-- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+- [X] 补充 3 张调试照片：输入电压.png、输出电压.png、整体调试.png
+- [X] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
 
 ---
 
@@ -125,16 +125,16 @@ Documentation/
 
 ### 执行内容
 
-- [x] 论文正文 11 处语法/错别字/口语化问题修正
+- [X] 论文正文 11 处语法/错别字/口语化问题修正
   - 错别字：绑绑有余→绰绰有余、漐次→逐步
   - 语体不当：笔者正是受此启发→基于这一思路
   - 口语化→学术语体：拿到→获取、跑了→集成、省事→便捷、出了问题→故障定位 等
   - 语法错误：这对…减轻不少→显著降低了…
-- [x] 引用格式清理：`[^[N]^]` → `[N]` → 全部移除（用户不需要引用）
-- [x] 参考文献章节（16条文献）整体删除
-- [x] 安装 humanizer-cn 技能（348次安装，22项AI模式检查）
-- [x] 用 humanizer-cn 全文扫描：18项零命中，仅剩"与此同时""此外"等4处低风险残留
-- [x] Word 文件重新生成（论文正文.docx）
+- [X] 引用格式清理：`[^[N]^]` → `[N]` → 全部移除（用户不需要引用）
+- [X] 参考文献章节（16条文献）整体删除
+- [X] 安装 humanizer-cn 技能（348次安装，22项AI模式检查）
+- [X] 用 humanizer-cn 全文扫描：18项零命中，仅剩"与此同时""此外"等4处低风险残留
+- [X] Word 文件重新生成（论文正文.docx）
 
 ### 论文当前状态
 
@@ -144,21 +144,21 @@ Documentation/
 
 ### 技能变更
 
-| 技能 | 动作 | 路径 |
-|---|---|---|
+| 技能         | 动作   | 路径                                           |
+| ------------ | ------ | ---------------------------------------------- |
 | humanizer-cn | 新安装 | `C:\Users\chen1\.agents\skills\humanizer-cn` |
 
 ### 项目文件清理
 
-| 删除项 | 原因 |
-|---|---|
-| `README.en.md` | Gitee 默认英文模板，未填写 |
-| `DEVLOG.md` | 过时开发日志，Wiki 已替代 |
-| `Documentation/image/` | 空目录 + 2 张无用临时图片 |
-| `Documentation/formulas/` | 公式 PNG + 临时 docx，论文已改用 LaTeX |
-| `Documentation/gen_formulas.py` | 一次性公式生成脚本 |
-| `Documentation/take_screenshot.py` | 一次性截图脚本 |
-| `Output/*.map *.lst` | 编译临时产物 |
+| 删除项                               | 原因                                   |
+| ------------------------------------ | -------------------------------------- |
+| `README.en.md`                     | Gitee 默认英文模板，未填写             |
+| `DEVLOG.md`                        | 过时开发日志，Wiki 已替代              |
+| `Documentation/image/`             | 空目录 + 2 张无用临时图片              |
+| `Documentation/formulas/`          | 公式 PNG + 临时 docx，论文已改用 LaTeX |
+| `Documentation/gen_formulas.py`    | 一次性公式生成脚本                     |
+| `Documentation/take_screenshot.py` | 一次性截图脚本                         |
+| `Output/*.map *.lst`               | 编译临时产物                           |
 
 ### 目录整理
 
@@ -193,9 +193,9 @@ Documentation/
 
 ### 待跟进
 
-- [x] 补充 3 张调试照片：输入电压、输出电压、整体调试 → 已全部补充
-- [ ] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
-- [ ] 如需恢复参考文献，可从 git 历史中找回
+- [X] 补充 3 张调试照片：输入电压、输出电压、整体调试 → 已全部补充
+- [X] 后续新增 SVG 图需同步更新 `svg-flowchart-skill.md` 图清单
+- [X] 如需恢复参考文献，可从 git 历史中找回
 
 ---
 
@@ -203,28 +203,28 @@ Documentation/
 
 ### 执行内容
 
-- [x] **下位机**：新增 ADC 校准模块 `Drivers/BSP/Calib/`（calib.c/.h，52 字节数据 + magic + CRC）
-- [x] **下位机**：Modbus 寄存器扩展 78→102（+22 个校准寄存器 0x0050-0x0065）
-- [x] **下位机**：Flash 写入握手方案——延迟到主循环 + eMBDisable/HAL_Delay/eMBInit/eMBEnable，解决 CRC 失败
-- [x] **下位机**：Flash 扇区从 Sector 7 (128KB, 1.5s) 换到 Sector 2 (16KB, 0.3s)
-- [x] **下位机**：mbrtu.c 修复 #177-D 未使用变量警告
-- [x] **上位机**：单页改 7 页 Tab（首页/系统/姿态/PWM/ADC/气压计/高级）
-- [x] **上位机**：舵机控制增强（滑块+占空比+角度+零点，localStorage 保存零点）
-- [x] **上位机**：ADC 校准面板（5 通道 gain/offset + 应用/一键反算/保存 Flash/恢复默认）
-- [x] **上位机**：自动重连 ModbusClient（双触发 + 软/硬重连 + 指数退避 1→30s 最多 10 次）
-- [x] **上位机**：Flash 写入握手（flashBusyRef 停轮询 + 静默 1500ms + CAL_STATUS 轮询 5s）
-- [x] **上位机**：全局字号放大（Metric text-xl→2xl, 3D h-48→72, 波形 600×200→800×280）
-- [x] **Wiki**：更新 modbus-register-map 到 102 寄存器 + 新增 adc-calibration 实体 + web-dashboard 7 页结构
-- [x] **Git**：4 个 commit 提交并推送到 origin/master（gitignore/f407/dashboard/docs）
+- [X] **下位机**：新增 ADC 校准模块 `Drivers/BSP/Calib/`（calib.c/.h，52 字节数据 + magic + CRC）
+- [X] **下位机**：Modbus 寄存器扩展 78→102（+22 个校准寄存器 0x0050-0x0065）
+- [X] **下位机**：Flash 写入握手方案——延迟到主循环 + eMBDisable/HAL_Delay/eMBInit/eMBEnable，解决 CRC 失败
+- [X] **下位机**：Flash 扇区从 Sector 7 (128KB, 1.5s) 换到 Sector 2 (16KB, 0.3s)
+- [X] **下位机**：mbrtu.c 修复 #177-D 未使用变量警告
+- [X] **上位机**：单页改 7 页 Tab（首页/系统/姿态/PWM/ADC/气压计/高级）
+- [X] **上位机**：舵机控制增强（滑块+占空比+角度+零点，localStorage 保存零点）
+- [X] **上位机**：ADC 校准面板（5 通道 gain/offset + 应用/一键反算/保存 Flash/恢复默认）
+- [X] **上位机**：自动重连 ModbusClient（双触发 + 软/硬重连 + 指数退避 1→30s 最多 10 次）
+- [X] **上位机**：Flash 写入握手（flashBusyRef 停轮询 + 静默 1500ms + CAL_STATUS 轮询 5s）
+- [X] **上位机**：全局字号放大（Metric text-xl→2xl, 3D h-48→72, 波形 600×200→800×280）
+- [X] **Wiki**：更新 modbus-register-map 到 102 寄存器 + 新增 adc-calibration 实体 + web-dashboard 7 页结构
+- [X] **Git**：4 个 commit 提交并推送到 origin/master（gitignore/f407/dashboard/docs）
 
 ### 关键技术决策
 
-| 决策 | 理由 |
-|---|---|
-| Flash 用 Sector 2 | 固件仅占 Sector 0-1 (25KB)，Sector 2 空闲且擦除 0.3s（Sector 5-7 要 1.5s 阻塞 Modbus） |
-| Flash 擦写延迟到主循环 | 回调内同步写 Flash 会阻塞 eMBPoll 发响应，Master 超时后串口残帧导致 CRC 失败 |
-| 重连触发双条件 | 仅监听物理断开无法应对 MCU 重启但 USB 仍在的情况；连续 3 次通讯失败兜底 |
-| 软重连 + 硬重连 | 软：同 port close/open，应对 MCU 复位；硬：getPorts() 找回授权，应对 USB 重枚举 |
+| 决策                   | 理由                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| Flash 用 Sector 2      | 固件仅占 Sector 0-1 (25KB)，Sector 2 空闲且擦除 0.3s（Sector 5-7 要 1.5s 阻塞 Modbus） |
+| Flash 擦写延迟到主循环 | 回调内同步写 Flash 会阻塞 eMBPoll 发响应，Master 超时后串口残帧导致 CRC 失败           |
+| 重连触发双条件         | 仅监听物理断开无法应对 MCU 重启但 USB 仍在的情况；连续 3 次通讯失败兜底                |
+| 软重连 + 硬重连        | 软：同 port close/open，应对 MCU 复位；硬：getPorts() 找回授权，应对 USB 重枚举        |
 
 ### 新增实体页面
 
@@ -232,11 +232,11 @@ Documentation/
 
 ### 目录结构变更
 
-| 变更 | 说明 |
-|---|---|
-| `Wiki/entities/adc-calibration.md` 新建 | 校准模块专题 |
-| `Software/modbus-dashboard/.gitignore` | 新增 `*.tsbuildinfo` |
-| `Software/F407/Drivers/BSP/Calib/` | 新模块目录 |
+| 变更                                      | 说明                   |
+| ----------------------------------------- | ---------------------- |
+| `Wiki/entities/adc-calibration.md` 新建 | 校准模块专题           |
+| `Software/modbus-dashboard/.gitignore`  | 新增 `*.tsbuildinfo` |
+| `Software/F407/Drivers/BSP/Calib/`      | 新模块目录             |
 
 ### 待跟进
 
