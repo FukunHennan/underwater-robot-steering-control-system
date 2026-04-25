@@ -191,6 +191,34 @@ export const REG = {
   CAL_AN4_OFF:   0x0062,
   CAL_CMD:       0x0064,
   CAL_STATUS:    0x0065,
+
+  GPIO_MODE0:    0x0066,
+  GPIO_MODE1:    0x0067,
+  GPIO_MODE2:    0x0068,
+  GPIO_MODE3:    0x0069,
+  GPIO_OUT0:     0x006a,
+  GPIO_OUT1:     0x006b,
+  GPIO_OUT2:     0x006c,
+  GPIO_OUT3:     0x006d,
+  GPIO_IN0:      0x006e,
+  GPIO_IN1:      0x006f,
+  GPIO_IN2:      0x0070,
+  GPIO_IN3:      0x0071,
+
+  IR_TX_CMD:     0x0072,
+  IR_TX_DATA:    0x0073,
+  IR_RX_STATUS:  0x0074,
+  IR_RX_DATA:    0x0075,
+
+  /* IR timing parameters (0x0076-0x007D) */
+  IR_LEAD_LOW_LO:  0x0076,
+  IR_LEAD_LOW_HI:  0x0077,
+  IR_LEAD_HIGH_LO: 0x0078,
+  IR_LEAD_HIGH_HI: 0x0079,
+  IR_BIT0_LO:      0x007A,
+  IR_BIT0_HI:      0x007B,
+  IR_BIT1_LO:      0x007C,
+  IR_BIT1_HI:      0x007D,
 } as const;
 
 /** Calibration channel indices (match firmware CALIB_CH_*) */
@@ -222,6 +250,19 @@ export interface ReconnectInfo {
   attempt: number;
   max: number;
   reason: 'physical' | 'comm-error';
+}
+
+export interface GPIOData {
+  modes: number[];
+  outputs: number[];
+  inputs: number[];
+}
+
+export interface IRData {
+  txCmd: number;
+  txData: number;
+  rxStatus: number;
+  rxData: number;
 }
 
 export class ModbusClient {
@@ -663,6 +704,75 @@ export class ModbusClient {
       offsets,
       status: regs[21], // REG.CAL_STATUS is the 22nd register (index 21)
     };
+  }
+
+  /** Read GPIO block (0x0066-0x0071) */
+  async readGPIO(): Promise<GPIOData> {
+    const regs = await this.readHoldingRegisters(REG.GPIO_MODE0, 12);
+    return {
+      modes: regs.slice(0, 4),
+      outputs: regs.slice(4, 8),
+      inputs: regs.slice(8, 12),
+    };
+  }
+
+  /** Set GPIO mode for one channel: 0=input, 1=output */
+  async writeGPIOMode(ch: number, mode: number): Promise<void> {
+    if (ch < 0 || ch > 3) throw new Error('GPIO 通道号越界');
+    await this.writeSingleRegister(REG.GPIO_MODE0 + ch, mode ? 1 : 0);
+  }
+
+  /** Set GPIO output level for one channel: 0=low, 1=high */
+  async writeGPIOOutput(ch: number, value: number): Promise<void> {
+    if (ch < 0 || ch > 3) throw new Error('GPIO 通道号越界');
+    await this.writeSingleRegister(REG.GPIO_OUT0 + ch, value ? 1 : 0);
+  }
+
+  /** Read IR placeholder block (0x0072-0x0075) */
+  async readIR(): Promise<IRData> {
+    const regs = await this.readHoldingRegisters(REG.IR_TX_CMD, 4);
+    return {
+      txCmd: regs[0],
+      txData: regs[1],
+      rxStatus: regs[2],
+      rxData: regs[3],
+    };
+  }
+
+  /** Write IR placeholder command/data */
+  async writeIRTx(cmd: number, data: number): Promise<void> {
+    await this.writeMultipleRegisters(REG.IR_TX_CMD, [cmd & 0xFFFF, data & 0xFFFF]);
+  }
+
+  /** Read IR timing parameters (0x0076-0x007D) */
+  async readIRParams(): Promise<{
+    leadLowLo: number; leadLowHi: number;
+    leadHighLo: number; leadHighHi: number;
+    bit0Lo: number; bit0Hi: number;
+    bit1Lo: number; bit1Hi: number;
+  }> {
+    const regs = await this.readHoldingRegisters(REG.IR_LEAD_LOW_LO, 8);
+    return {
+      leadLowLo: regs[0], leadLowHi: regs[1],
+      leadHighLo: regs[2], leadHighHi: regs[3],
+      bit0Lo: regs[4], bit0Hi: regs[5],
+      bit1Lo: regs[6], bit1Hi: regs[7],
+    };
+  }
+
+  /** Write all IR timing parameters */
+  async writeIRParams(params: {
+    leadLowLo: number; leadLowHi: number;
+    leadHighLo: number; leadHighHi: number;
+    bit0Lo: number; bit0Hi: number;
+    bit1Lo: number; bit1Hi: number;
+  }): Promise<void> {
+    await this.writeMultipleRegisters(REG.IR_LEAD_LOW_LO, [
+      params.leadLowLo & 0xFFFF, params.leadLowHi & 0xFFFF,
+      params.leadHighLo & 0xFFFF, params.leadHighHi & 0xFFFF,
+      params.bit0Lo & 0xFFFF, params.bit0Hi & 0xFFFF,
+      params.bit1Lo & 0xFFFF, params.bit1Hi & 0xFFFF,
+    ]);
   }
 
   /** Write gain for a single calibration channel (0..4) */

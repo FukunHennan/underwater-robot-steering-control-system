@@ -4,7 +4,7 @@ import {
   Gauge, Sliders, Cpu, AlertTriangle, Zap, FileText, LayoutDashboard, Trash2, Settings,
   Home, Compass, Target
 } from 'lucide-react'
-import { ModbusClient, type ConnectionState, type ModbusLog, type ReconnectInfo, REG, CAL_CH_NAMES } from './lib/modbus'
+import { ModbusClient, type ConnectionState, type ModbusLog, type ReconnectInfo, type GPIOData, type IRData, REG, CAL_CH_NAMES } from './lib/modbus'
 
 // ======================== Types ========================
 
@@ -22,6 +22,13 @@ interface PwmFreqData { groups: PwmFreqGroup[] }
 interface AdcData { temps: number[]; voltage: number; adcRaw: number[] }
 interface BarometerData { pressure: number; altitude: number; temperature: number }
 interface CalibData { gains: number[]; offsets: number[]; status: number }
+
+const GPIO_LABELS = ['PB12', 'PE6', 'PE5', 'PC4'] as const
+const IR_STATUS_LABELS: Record<number, string> = {
+  0: '空闲',
+  1: '收到帧',
+  2: '重复码',
+}
 
 const PWM_GROUPS = [
   { label: 'TIM4', clock: 84_000_000, channels: [0, 1, 2, 3], chLabels: ['CH1', 'CH2', 'CH3', 'CH4'] },
@@ -246,7 +253,7 @@ export default function App() {
   const [logs, setLogs] = useState<ModbusLog[]>([])
   const [polling, setPolling] = useState(false)
   const [pollInterval, setPollInterval] = useState(500)
-  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'adc' | 'baro' | 'advanced'>('home')
+  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'adc' | 'baro' | 'extio' | 'advanced'>('home')
 
   const [system, setSystem] = useState<SystemData | null>(null)
   const [attitude, setAttitude] = useState<AttitudeData | null>(null)
@@ -254,6 +261,8 @@ export default function App() {
   const [pwmFreq, setPwmFreq] = useState<PwmFreqData | null>(null)
   const [adc, setAdc] = useState<AdcData | null>(null)
   const [baro, setBaro] = useState<BarometerData | null>(null)
+  const [gpio, setGpio] = useState<GPIOData | null>(null)
+  const [ir, setIr] = useState<IRData | null>(null)
   const [error, setError] = useState('')
   const [attHistory, setAttHistory] = useState<AttitudeData[]>([])
   const [showGyro, setShowGyro] = useState(false)
@@ -274,6 +283,24 @@ export default function App() {
     offsets: ['0', '0', '0', '0', '0'],
   })
   const [calibMsg, setCalibMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
+  const [ioMsg, setIoMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
+  const [irTxCmd, setIrTxCmd] = useState('1')
+  const [irTxData, setIrTxData] = useState('4660')
+
+  /* IR timing parameters */
+  const [irParams, setIrParams] = useState({
+    leadLowLo: 8500, leadLowHi: 9500,
+    leadHighLo: 4000, leadHighHi: 5000,
+    bit0Lo: 400, bit0Hi: 700,
+    bit1Lo: 1500, bit1Hi: 1900,
+  })
+  const [irParamsEdit, setIrParamsEdit] = useState({
+    leadLowLo: '8500', leadLowHi: '9500',
+    leadHighLo: '4000', leadHighHi: '5000',
+    bit0Lo: '400', bit0Hi: '700',
+    bit1Lo: '1500', bit1Hi: '1900',
+  })
+  const [irMsg, setIrMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
 
   /* Servo zero-angle calibration (per-channel, saved in localStorage) */
   const [servoZeros, setServoZeros] = useState<number[]>(() => {
@@ -311,6 +338,8 @@ export default function App() {
     setAdc({ temps: [25.6, 18.3, 31.2, 22.8], voltage: 11.8, adcRaw: [3128, 2234, 3812, 2786, 3654] })
     setBaro({ pressure: 101325, altitude: 2850, temperature: 24.6 })
     setCalib({ gains: [1, 1, 1, 1, 1], offsets: [0, 0, 0, 0, 0], status: 0 })
+    setGpio({ modes: [0, 1, 0, 1], outputs: [0, 1, 0, 1], inputs: [0, 1, 1, 0] })
+    setIr({ txCmd: 0, txData: 0x1234, rxStatus: 0, rxData: 0x1234 })
     setLocalServos([1500, 1620, 1380, 1500, 1750, 1500, 1200, 1500])
     setLocalLeds([680, 250])
     const hist: AttitudeData[] = []
@@ -339,6 +368,8 @@ export default function App() {
       await client.connect(9600)
       /* Auto-load calibration once on connect */
       loadCalibFromDevice().catch(() => null)
+      client.readGPIO().then(setGpio).catch(() => null)
+      client.readIR().then(setIr).catch(() => null)
     } catch (e: any) {
       setError(e.message)
     }
@@ -355,18 +386,22 @@ export default function App() {
     if (connState !== 'connected') return
     try {
       setError('')
-      const [sys, att, pwmData, freqData, adcData] = await Promise.all([
+      const [sys, att, pwmData, freqData, adcData, gpioData, irData] = await Promise.all([
         client.readSystem().catch(() => null),
         client.readAttitude().catch(() => null),
         client.readPWM().catch(() => null),
         client.readPWMFreq().catch(() => null),
         client.readADC().catch(() => null),
+        client.readGPIO().catch(() => null),
+        client.readIR().catch(() => null),
       ])
       if (sys) setSystem(sys)
       if (att) setAttitude(att)
       if (pwmData) setPwm(pwmData)
       if (freqData) setPwmFreq(freqData)
       if (adcData) setAdc(adcData)
+      if (gpioData) setGpio(gpioData)
+      if (irData) setIr(irData)
     } catch (e: any) {
       setError(e.message)
     }
@@ -389,6 +424,10 @@ export default function App() {
       setAdc(adcData)
       const baroData = await client.readBarometer()
       setBaro(baroData)
+      const gpioData = await client.readGPIO()
+      setGpio(gpioData)
+      const irData = await client.readIR()
+      setIr(irData)
     } catch (e: any) {
       setError(e.message)
     }
@@ -695,6 +734,110 @@ export default function App() {
     }
   }
 
+  const refreshExtIO = useCallback(async () => {
+    try {
+      const [gpioData, irData] = await Promise.all([
+        client.readGPIO(),
+        client.readIR(),
+      ])
+      setGpio(gpioData)
+      setIr(irData)
+    } catch (e: any) {
+      setIoMsg({ type: 'err', text: `读取扩展IO失败: ${e.message}` })
+    }
+  }, [client])
+
+  const handleGPIOModeChange = async (ch: number, mode: number) => {
+    try {
+      await client.writeGPIOMode(ch, mode)
+      setIoMsg({ type: 'ok', text: `${GPIO_LABELS[ch]} 已切换为${mode ? '输出' : '输入'}模式` })
+      await refreshExtIO()
+    } catch (e: any) {
+      setIoMsg({ type: 'err', text: `GPIO 模式写入失败: ${e.message}` })
+    }
+  }
+
+  const handleGPIOOutputChange = async (ch: number, value: number) => {
+    try {
+      await client.writeGPIOOutput(ch, value)
+      setIoMsg({ type: 'ok', text: `${GPIO_LABELS[ch]} 输出已设为 ${value ? '高' : '低'} 电平` })
+      await refreshExtIO()
+    } catch (e: any) {
+      setIoMsg({ type: 'err', text: `GPIO 输出写入失败: ${e.message}` })
+    }
+  }
+
+  const handleIRSend = async () => {
+    const cmd = Number(irTxCmd)
+    const data = Number(irTxData)
+    if (!Number.isInteger(cmd) || !Number.isInteger(data)) {
+      setIoMsg({ type: 'err', text: '红外命令和数据必须是整数' })
+      return
+    }
+    try {
+      await client.writeIRTx(cmd, data)
+      setIoMsg({ type: 'ok', text: `已写入红外占位寄存器 CMD=${cmd} DATA=${data}` })
+      await refreshExtIO()
+    } catch (e: any) {
+      setIoMsg({ type: 'err', text: `红外寄存器写入失败: ${e.message}` })
+    }
+  }
+
+  const handleIRParamsRead = async () => {
+    try {
+      const params = await client.readIRParams()
+      setIrParams(params)
+      setIrParamsEdit({
+        leadLowLo: params.leadLowLo.toString(),
+        leadLowHi: params.leadLowHi.toString(),
+        leadHighLo: params.leadHighLo.toString(),
+        leadHighHi: params.leadHighHi.toString(),
+        bit0Lo: params.bit0Lo.toString(),
+        bit0Hi: params.bit0Hi.toString(),
+        bit1Lo: params.bit1Lo.toString(),
+        bit1Hi: params.bit1Hi.toString(),
+      })
+      setIrMsg({ type: 'ok', text: '已从下位机读取红外参数' })
+    } catch (e: any) {
+      setIrMsg({ type: 'err', text: `读取失败: ${e.message}` })
+    }
+  }
+
+  const handleIRParamsApply = async () => {
+    const parseVal = (str: string, def: number) => {
+      const v = parseInt(str, 10)
+      return Number.isFinite(v) ? v : def
+    }
+    const params = {
+      leadLowLo: parseVal(irParamsEdit.leadLowLo, 8500),
+      leadLowHi: parseVal(irParamsEdit.leadLowHi, 9500),
+      leadHighLo: parseVal(irParamsEdit.leadHighLo, 4000),
+      leadHighHi: parseVal(irParamsEdit.leadHighHi, 5000),
+      bit0Lo: parseVal(irParamsEdit.bit0Lo, 400),
+      bit0Hi: parseVal(irParamsEdit.bit0Hi, 700),
+      bit1Lo: parseVal(irParamsEdit.bit1Lo, 1500),
+      bit1Hi: parseVal(irParamsEdit.bit1Hi, 1900),
+    }
+    try {
+      await client.writeIRParams(params)
+      setIrParams(params)
+      setIrMsg({ type: 'ok', text: '红外参数已应用' })
+    } catch (e: any) {
+      setIrMsg({ type: 'err', text: `写入失败: ${e.message}` })
+    }
+  }
+
+  const handleIRParamsReset = () => {
+    const defaults = {
+      leadLowLo: '8500', leadLowHi: '9500',
+      leadHighLo: '4000', leadHighHi: '5000',
+      bit0Lo: '400', bit0Hi: '700',
+      bit1Lo: '1500', bit1Hi: '1900',
+    }
+    setIrParamsEdit(defaults)
+    setIrMsg({ type: 'info', text: '已恢复默认参数（未写入下位机）' })
+  }
+
   const calcFreq = (group: number) => {
     const clk = PWM_GROUPS[group].clock
     const { arr, psc } = localFreq[group]
@@ -725,6 +868,7 @@ export default function App() {
               { id: 'pwm',      label: 'PWM',     icon: <Sliders className="w-3.5 h-3.5" /> },
               { id: 'adc',      label: 'ADC',     icon: <Thermometer className="w-3.5 h-3.5" /> },
               { id: 'baro',     label: '气压计',  icon: <CloudRain className="w-3.5 h-3.5" /> },
+              { id: 'extio',    label: '扩展IO',  icon: <Zap className="w-3.5 h-3.5" /> },
               { id: 'advanced', label: '高级',    icon: <Settings className="w-3.5 h-3.5" />, badge: logs.length },
             ] as const).map(tab => (
               <button
@@ -1201,8 +1345,202 @@ export default function App() {
           <div className="mt-2 text-[10px] text-[--fg-muted] font-mono">freq = TIM_CLK / (PSC+1) / (ARR+1)</div>
         </Card>
         )}
-      </main>
-      )}
+
+        {view === 'extio' && (
+          <>
+            <Card title="GPIO 扩展接口" icon={<Zap className="w-4 h-4 text-emerald-400" />} className="col-span-12 lg:col-span-7">
+          <div className="space-y-3">
+            {ioMsg && (
+              <div className={cn(
+                "px-2 py-1 rounded text-[11px] font-mono",
+                ioMsg.type === 'ok' && "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+                ioMsg.type === 'err' && "bg-red-500/15 text-red-400 border border-red-500/30",
+                ioMsg.type === 'info' && "bg-sky-500/15 text-sky-400 border border-sky-500/30",
+              )}>{ioMsg.text}</div>
+            )}
+            <div className="grid grid-cols-[90px_90px_1fr_1fr] gap-2 items-center text-[10px] text-[--fg-muted] uppercase px-1">
+              <div>引脚</div>
+              <div>模式</div>
+              <div>输出</div>
+              <div>输入状态</div>
+            </div>
+            {GPIO_LABELS.map((label, ch) => (
+              <div key={label} className="grid grid-cols-[90px_90px_1fr_1fr] gap-2 items-center rounded bg-[--bg-input]/40 px-2 py-2">
+                <div>
+                  <div className="text-sm font-mono font-semibold text-[--fg-primary]">{label}</div>
+                  <div className="text-[10px] text-[--fg-muted]">GPIO{ch}</div>
+                </div>
+                <select
+                  value={gpio?.modes[ch] ?? 0}
+                  onChange={e => handleGPIOModeChange(ch, Number(e.target.value))}
+                  disabled={connState !== 'connected'}
+                  className="bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs text-[--fg-primary]"
+                >
+                  <option value={0}>输入</option>
+                  <option value={1}>输出</option>
+                </select>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleGPIOOutputChange(ch, 0)}
+                    disabled={connState !== 'connected' || (gpio?.modes[ch] ?? 0) !== 1}
+                    className="px-3 py-1 rounded text-xs bg-zinc-500/20 text-zinc-300 hover:bg-zinc-500/30 disabled:opacity-40 transition-colors"
+                  >低</button>
+                  <button
+                    onClick={() => handleGPIOOutputChange(ch, 1)}
+                    disabled={connState !== 'connected' || (gpio?.modes[ch] ?? 0) !== 1}
+                    className="px-3 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 transition-colors"
+                  >高</button>
+                  <span className="text-[10px] font-mono text-[--fg-muted]">OUT={gpio?.outputs[ch] ?? '--'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "inline-block w-2.5 h-2.5 rounded-full",
+                    (gpio?.inputs[ch] ?? 0) ? 'bg-emerald-400' : 'bg-zinc-500'
+                  )} />
+                  <span className="text-xs font-mono text-[--fg-primary]">{gpio?.inputs[ch] ?? '--'}</span>
+                </div>
+              </div>
+            ))}
+            <div className="flex justify-end">
+              <button
+                onClick={refreshExtIO}
+                disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors"
+              >刷新 GPIO</button>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="红外占位接口" icon={<Settings className="w-4 h-4 text-amber-400" />} className="col-span-12 lg:col-span-5">
+          <div className="space-y-3">
+            <div className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300 leading-relaxed">
+              红外接收已接入真实 NEC 解码（DP1 / DI1 / PC5）。发送路径仍保留为寄存器预留，当前未实现真实发射。
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">TX CMD</div>
+                <input
+                  type="number"
+                  value={irTxCmd}
+                  onChange={e => setIrTxCmd(e.target.value)}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-sm font-mono text-[--fg-primary]"
+                />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">TX DATA</div>
+                <input
+                  type="number"
+                  value={irTxData}
+                  onChange={e => setIrTxData(e.target.value)}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-sm font-mono text-[--fg-primary]"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleIRSend}
+                disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-40 transition-colors"
+              >写入占位寄存器</button>
+              <button
+                onClick={refreshExtIO}
+                disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors"
+              >刷新红外状态</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[--bg-input] rounded px-3 py-2">
+                <div className="text-[10px] text-[--fg-muted] uppercase">RX STATUS</div>
+                <div className="text-lg font-mono font-bold text-amber-400">{ir ? IR_STATUS_LABELS[ir.rxStatus] ?? `${ir.rxStatus}` : '--'}</div>
+              </div>
+              <div className="bg-[--bg-input] rounded px-3 py-2">
+                <div className="text-[10px] text-[--fg-muted] uppercase">RX DATA</div>
+                <div className="text-lg font-mono font-bold text-[--fg-primary]">{ir ? ir.rxData : '--'}</div>
+              </div>
+              <div className="bg-[--bg-input] rounded px-3 py-2">
+                <div className="text-[10px] text-[--fg-muted] uppercase">LAST TX CMD</div>
+                <div className="text-sm font-mono text-[--fg-primary]">{ir ? ir.txCmd : '--'}</div>
+              </div>
+              <div className="bg-[--bg-input] rounded px-3 py-2">
+                <div className="text-[10px] text-[--fg-muted] uppercase">LAST TX DATA</div>
+                <div className="text-sm font-mono text-[--fg-primary]">{ir ? ir.txData : '--'}</div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="红外解码参数配置" icon={<Settings className="w-4 h-4 text-cyan-400" />} className="col-span-12 lg:col-span-7">
+          <div className="space-y-3">
+            <div className="rounded bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs text-cyan-300 leading-relaxed">
+              调整红外解码 timing 参数范围，用于适配不同品牌的遥控器。修改后点击"应用参数"生效。
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码低(下限)</div>
+                <input type="number" value={irParamsEdit.leadLowLo} onChange={e => setIrParamsEdit(p => ({ ...p, leadLowLo: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码低(上限)</div>
+                <input type="number" value={irParamsEdit.leadLowHi} onChange={e => setIrParamsEdit(p => ({ ...p, leadLowHi: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码高(下限)</div>
+                <input type="number" value={irParamsEdit.leadHighLo} onChange={e => setIrParamsEdit(p => ({ ...p, leadHighLo: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码高(上限)</div>
+                <input type="number" value={irParamsEdit.leadHighHi} onChange={e => setIrParamsEdit(p => ({ ...p, leadHighHi: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"0"(下限)</div>
+                <input type="number" value={irParamsEdit.bit0Lo} onChange={e => setIrParamsEdit(p => ({ ...p, bit0Lo: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"0"(上限)</div>
+                <input type="number" value={irParamsEdit.bit0Hi} onChange={e => setIrParamsEdit(p => ({ ...p, bit0Hi: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"1"(下限)</div>
+                <input type="number" value={irParamsEdit.bit1Lo} onChange={e => setIrParamsEdit(p => ({ ...p, bit1Lo: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+              <div>
+                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"1"(上限)</div>
+                <input type="number" value={irParamsEdit.bit1Hi} onChange={e => setIrParamsEdit(p => ({ ...p, bit1Hi: e.target.value }))}
+                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
+              </div>
+            </div>
+            {irMsg && (
+              <div className={`rounded px-3 py-2 text-xs ${irMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : irMsg.type === 'err' ? 'bg-red-500/10 text-red-400' : 'bg-sky-500/10 text-sky-400'}`}>
+                {irMsg.text}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={handleIRParamsRead} disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors">
+                从下位机读取
+              </button>
+              <button onClick={handleIRParamsApply} disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-xs bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-40 transition-colors">
+                应用参数
+              </button>
+              <button onClick={handleIRParamsReset}
+                className="px-3 py-1 rounded text-xs bg-gray-500/20 text-gray-400 hover:bg-gray-500/30 transition-colors">
+                恢复默认
+              </button>
+            </div>
+          </div>
+        </Card>
+          </>
+        )}
+        </main>
+        )}
 
       {/* Main content - Advanced Settings View (Registers + Logs) */}
       {view === 'advanced' && (
@@ -1242,7 +1580,11 @@ export default function App() {
                   <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x0040-47</td><td className="px-2">PWM_ARR/PSC G1-G4</td><td className="px-2">uint16</td><td className="px-2">R/W</td><td className="px-2">ARR/PSC ×4 组</td></tr>
                   <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x0048</td><td className="px-2">PRESSURE</td><td className="px-2">int32 Pa</td><td className="px-2">R</td><td className="px-2">{baro ? `${baro.pressure} Pa` : '--'}</td></tr>
                   <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x004A</td><td className="px-2">ALTITUDE</td><td className="px-2">int32 cm</td><td className="px-2">R</td><td className="px-2">{baro ? `${baro.altitude} cm` : '--'}</td></tr>
-                  <tr><td className="py-1 px-2">0x004C</td><td className="px-2">BARO_TEMP</td><td className="px-2">float ℃</td><td className="px-2">R</td><td className="px-2">{baro ? `${baro.temperature.toFixed(2)} ℃` : '--'}</td></tr>
+                  <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x004C</td><td className="px-2">BARO_TEMP</td><td className="px-2">float ℃</td><td className="px-2">R</td><td className="px-2">{baro ? `${baro.temperature.toFixed(2)} ℃` : '--'}</td></tr>
+                  <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x0066-0x0069</td><td className="px-2">GPIO_MODE0-3</td><td className="px-2">uint16</td><td className="px-2">R/W</td><td className="px-2">{gpio ? gpio.modes.join(', ') : '--'}</td></tr>
+                  <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x006A-0x006D</td><td className="px-2">GPIO_OUT0-3</td><td className="px-2">uint16</td><td className="px-2">R/W</td><td className="px-2">{gpio ? gpio.outputs.join(', ') : '--'}</td></tr>
+                  <tr className="border-b border-[--border]/50"><td className="py-1 px-2">0x006E-0x0071</td><td className="px-2">GPIO_IN0-3</td><td className="px-2">uint16</td><td className="px-2">R</td><td className="px-2">{gpio ? gpio.inputs.join(', ') : '--'}</td></tr>
+                  <tr><td className="py-1 px-2">0x0072-0x0075</td><td className="px-2">IR_TX/IR_RX</td><td className="px-2">uint16</td><td className="px-2">R/W</td><td className="px-2">{ir ? `${ir.txCmd}/${ir.txData}/${ir.rxStatus}/${ir.rxData}` : '--'}</td></tr>
                 </tbody>
               </table>
             </div>

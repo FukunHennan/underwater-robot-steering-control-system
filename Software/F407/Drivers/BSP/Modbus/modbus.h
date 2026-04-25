@@ -174,8 +174,38 @@
 #define REG_CAL_CMD           100    /* 0x0064 */
 #define REG_CAL_STATUS        101    /* 0x0065 */
 
+/* GPIO registers: 0x0066 - 0x0071 */
+#define REG_GPIO_MODE0         102
+#define REG_GPIO_MODE1         103
+#define REG_GPIO_MODE2         104
+#define REG_GPIO_MODE3         105
+#define REG_GPIO_OUT0          106
+#define REG_GPIO_OUT1          107
+#define REG_GPIO_OUT2          108
+#define REG_GPIO_OUT3          109
+#define REG_GPIO_IN0           110
+#define REG_GPIO_IN1           111
+#define REG_GPIO_IN2           112
+#define REG_GPIO_IN3           113
+
+/* IR placeholder registers: 0x0072 - 0x0075 */
+#define REG_IR_TX_CMD          114
+#define REG_IR_TX_DATA         115
+#define REG_IR_RX_STATUS       116
+#define REG_IR_RX_DATA         117
+
+/* IR timing parameters: 0x0076 - 0x007D (adjustable via Modbus) */
+#define REG_IR_LEAD_LOW_LO     118    /* Lead code low time min (us) */
+#define REG_IR_LEAD_LOW_HI     119    /* Lead code low time max (us) */
+#define REG_IR_LEAD_HIGH_LO    120    /* Lead code high time min (us) */
+#define REG_IR_LEAD_HIGH_HI    121    /* Lead code high time max (us) */
+#define REG_IR_BIT0_LO         122    /* Bit 0 time min (us) */
+#define REG_IR_BIT0_HI         123    /* Bit 0 time max (us) */
+#define REG_IR_BIT1_LO         124    /* Bit 1 time min (us) */
+#define REG_IR_BIT1_HI         125    /* Bit 1 time max (us) */
+
 /* Total register count */
-#define REG_HOLDING_MAX       102
+#define REG_HOLDING_MAX       126
 
 void modbus_init(void);
 void modbus_process(void);

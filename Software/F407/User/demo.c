@@ -27,6 +27,7 @@
 #include <string.h>
 #include "kalman.h"
 #include "calib.h"
+#include "gpio.h"
 
 /**
  * @brief       Demo Main Function - Modbus Mode
@@ -70,6 +71,11 @@ void demo_run(void)
     printf("[INFO] Loading ADC calibration...\r\n");
     calib_init();
     printf("[OK] Calibration loaded (magic=0x%08X)\r\n\n", (unsigned int)g_calib.magic);
+
+    /* Initialize GPIO expansion pins */
+    printf("[INFO] Initializing GPIO...\r\n");
+    gpio_init();
+    printf("[OK] GPIO initialized!\r\n\n");
 
     /* Initialize Modbus */
     printf("[INFO] Initializing Modbus...\r\n");

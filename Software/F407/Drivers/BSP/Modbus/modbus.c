@@ -25,10 +25,14 @@
 #include "adc.h"
 #include "pwm.h"
 #include "calib.h"
+#include "gpio.h"
 #include <string.h>
 
 /* Forward declaration for internal helper */
 static void modbus_sync_calib_to_regs(void);
+static void modbus_ir_init(void);
+static void modbus_ir_reset(void);
+static void modbus_ir_on_edge(uint8_t level, uint32_t now_us);
 
 /* Modbus holding register array */
 static USHORT g_modbus_registers[REG_HOLDING_MAX];
@@ -38,6 +42,241 @@ static USHORT g_modbus_registers[REG_HOLDING_MAX];
  * would cause the master to time out and see a stale frame with bad CRC). */
 static volatile uint16_t g_pending_calib_cmd = 0;
 
+/* IR receive (DI2 = PE4, NEC protocol) */
+#define IR_RX_GPIO_PORT              GPIOE
+#define IR_RX_GPIO_PIN               GPIO_PIN_4
+#define IR_RX_EXTI_IRQn              EXTI4_IRQn
+#define IR_STATUS_IDLE               0
+#define IR_STATUS_FRAME              1
+#define IR_STATUS_REPEAT             2
+#define IR_STATUS_EDGE               3
+#define IR_LATCH_MS                  300U
+
+typedef enum
+{
+    IR_STATE_IDLE = 0,
+    IR_STATE_LEAD_LOW,
+    IR_STATE_LEAD_HIGH,
+    IR_STATE_DATA_LOW,
+    IR_STATE_DATA_HIGH,
+    IR_STATE_REPEAT_LOW
+} ir_state_t;
+
+static volatile ir_state_t g_ir_state = IR_STATE_IDLE;
+static volatile uint32_t g_ir_last_falling_us = 0;
+static volatile uint32_t g_ir_last_rising_us = 0;
+static volatile uint32_t g_ir_data = 0;
+static volatile uint8_t g_ir_bit_index = 0;
+static volatile uint32_t g_ir_last_frame_tick = 0;
+static volatile uint32_t g_ir_edge_count = 0;
+static uint32_t g_ir_ticks_per_us = 168;
+
+/* IR timing parameters (adjustable via Modbus) */
+static uint32_t g_ir_lead_low_lo = 8500U;
+static uint32_t g_ir_lead_low_hi = 9500U;
+static uint32_t g_ir_lead_high_lo = 4000U;
+static uint32_t g_ir_lead_high_hi = 5000U;
+static uint32_t g_ir_bit0_lo = 400U;
+static uint32_t g_ir_bit0_hi = 700U;
+static uint32_t g_ir_bit1_lo = 1500U;
+static uint32_t g_ir_bit1_hi = 1900U;
+
+static uint32_t ir_time_diff_us(uint32_t now, uint32_t before)
+{
+    return now - before;
+}
+
+static uint8_t ir_in_range(uint32_t v, uint32_t lo, uint32_t hi)
+{
+    return (v >= lo && v <= hi) ? 1U : 0U;
+}
+
+static void modbus_ir_sync_params_from_regs(void)
+{
+    g_ir_lead_low_lo  = g_modbus_registers[REG_IR_LEAD_LOW_LO];
+    g_ir_lead_low_hi  = g_modbus_registers[REG_IR_LEAD_LOW_HI];
+    g_ir_lead_high_lo = g_modbus_registers[REG_IR_LEAD_HIGH_LO];
+    g_ir_lead_high_hi = g_modbus_registers[REG_IR_LEAD_HIGH_HI];
+    g_ir_bit0_lo      = g_modbus_registers[REG_IR_BIT0_LO];
+    g_ir_bit0_hi      = g_modbus_registers[REG_IR_BIT0_HI];
+    g_ir_bit1_lo      = g_modbus_registers[REG_IR_BIT1_LO];
+    g_ir_bit1_hi      = g_modbus_registers[REG_IR_BIT1_HI];
+    if (g_ir_lead_low_lo == 0) g_ir_lead_low_lo = 8500U;
+    if (g_ir_lead_low_hi == 0) g_ir_lead_low_hi = 9500U;
+    if (g_ir_lead_high_lo == 0) g_ir_lead_high_lo = 4000U;
+    if (g_ir_lead_high_hi == 0) g_ir_lead_high_hi = 5000U;
+    if (g_ir_bit0_lo == 0) g_ir_bit0_lo = 400U;
+    if (g_ir_bit0_hi == 0) g_ir_bit0_hi = 700U;
+    if (g_ir_bit1_lo == 0) g_ir_bit1_lo = 1500U;
+    if (g_ir_bit1_hi == 0) g_ir_bit1_hi = 1900U;
+}
+
+static uint32_t ir_now_us(void)
+{
+    return DWT->CYCCNT / g_ir_ticks_per_us;
+}
+
+static void modbus_ir_commit_frame(uint32_t raw)
+{
+    uint8_t addr = (uint8_t)(raw & 0xFFU);
+    uint8_t addr_inv = (uint8_t)((raw >> 8) & 0xFFU);
+    uint8_t cmd = (uint8_t)((raw >> 16) & 0xFFU);
+    uint8_t cmd_inv = (uint8_t)((raw >> 24) & 0xFFU);
+
+    if ((uint8_t)(addr ^ addr_inv) == 0xFFU && (uint8_t)(cmd ^ cmd_inv) == 0xFFU)
+    {
+        g_modbus_registers[REG_IR_RX_DATA] = ((uint16_t)addr << 8) | cmd;
+        g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_FRAME;
+        g_ir_last_frame_tick = HAL_GetTick();
+        printf("[IR] NEC frame addr=0x%02X cmd=0x%02X\r\n", addr, cmd);
+    }
+}
+
+static void modbus_ir_reset(void)
+{
+    g_ir_state = IR_STATE_IDLE;
+    g_ir_data = 0;
+    g_ir_bit_index = 0;
+}
+
+static void modbus_ir_on_edge(uint8_t level, uint32_t now_us)
+{
+    uint32_t dt;
+
+    modbus_ir_sync_params_from_regs();
+    g_ir_edge_count++;
+    g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_EDGE;
+    g_ir_last_frame_tick = HAL_GetTick();
+
+    if (level == 0U)
+    {
+        dt = ir_time_diff_us(now_us, g_ir_last_rising_us);
+        g_ir_last_falling_us = now_us;
+        g_modbus_registers[REG_IR_TX_DATA] = (uint16_t)((dt > 0xFFFFU) ? 0xFFFFU : dt);
+
+        if (g_ir_state == IR_STATE_LEAD_HIGH)
+        {
+            if (ir_in_range(dt, g_ir_lead_high_lo, g_ir_lead_high_hi))
+            {
+                g_ir_state = IR_STATE_DATA_LOW;
+                g_ir_data = 0;
+                g_ir_bit_index = 0;
+            }
+            else
+            {
+                modbus_ir_reset();
+            }
+        }
+        else if (g_ir_state == IR_STATE_DATA_HIGH)
+        {
+            if (ir_in_range(dt, g_ir_bit0_lo, g_ir_bit0_hi))
+            {
+                g_ir_data |= (0UL << g_ir_bit_index);
+                g_ir_bit_index++;
+            }
+            else if (ir_in_range(dt, g_ir_bit1_lo, g_ir_bit1_hi))
+            {
+                g_ir_data |= (1UL << g_ir_bit_index);
+                g_ir_bit_index++;
+            }
+            else
+            {
+                modbus_ir_reset();
+                return;
+            }
+
+            if (g_ir_bit_index >= 32U)
+            {
+                modbus_ir_commit_frame(g_ir_data);
+                modbus_ir_reset();
+            }
+            else
+            {
+                g_ir_state = IR_STATE_DATA_LOW;
+            }
+        }
+        else if (g_ir_state == IR_STATE_IDLE)
+        {
+            g_ir_state = IR_STATE_LEAD_LOW;
+        }
+    }
+    else
+    {
+        dt = ir_time_diff_us(now_us, g_ir_last_falling_us);
+        g_ir_last_rising_us = now_us;
+        g_modbus_registers[REG_IR_TX_DATA] = (uint16_t)((dt > 0xFFFFU) ? 0xFFFFU : dt);
+
+        if (g_ir_state == IR_STATE_LEAD_LOW)
+        {
+            if (ir_in_range(dt, g_ir_lead_low_lo, g_ir_lead_low_hi))
+            {
+                g_ir_state = IR_STATE_LEAD_HIGH;
+            }
+            else
+            {
+                modbus_ir_reset();
+            }
+        }
+        else if (g_ir_state == IR_STATE_DATA_LOW)
+        {
+            if (ir_in_range(dt, g_ir_bit0_lo, g_ir_bit0_hi))
+            {
+                g_ir_state = IR_STATE_DATA_HIGH;
+            }
+            else
+            {
+                modbus_ir_reset();
+            }
+        }
+        else if (g_ir_state == IR_STATE_REPEAT_LOW)
+        {
+            if (ir_in_range(dt, g_ir_bit0_lo, g_ir_bit0_hi))
+            {
+                g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_REPEAT;
+                g_ir_last_frame_tick = HAL_GetTick();
+            }
+            modbus_ir_reset();
+        }
+    }
+}
+
+static void modbus_ir_init(void)
+{
+    GPIO_InitTypeDef gpio_init_struct;
+
+    __HAL_RCC_GPIOE_CLK_ENABLE();
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
+
+    gpio_init_struct.Pin = IR_RX_GPIO_PIN;
+    gpio_init_struct.Mode = GPIO_MODE_IT_RISING_FALLING;
+    gpio_init_struct.Pull = GPIO_NOPULL;
+    gpio_init_struct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(IR_RX_GPIO_PORT, &gpio_init_struct);
+
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    g_ir_ticks_per_us = HAL_RCC_GetHCLKFreq() / 1000000U;
+    if (g_ir_ticks_per_us == 0U) g_ir_ticks_per_us = 168U;
+
+    HAL_NVIC_SetPriority(IR_RX_EXTI_IRQn, 4, 0);
+    HAL_NVIC_EnableIRQ(IR_RX_EXTI_IRQn);
+
+    modbus_ir_reset();
+    g_ir_edge_count = 0;
+    g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_IDLE;
+    g_modbus_registers[REG_IR_RX_DATA] = 0;
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == IR_RX_GPIO_PIN)
+    {
+        uint8_t level = (HAL_GPIO_ReadPin(IR_RX_GPIO_PORT, IR_RX_GPIO_PIN) == GPIO_PIN_SET) ? 1U : 0U;
+        modbus_ir_on_edge(level, ir_now_us());
+    }
+}
+
 /* ----------------------- Static helper functions -------------------------*/
 
 static BOOL is_reg_writable(USHORT addr)
@@ -46,6 +285,9 @@ static BOOL is_reg_writable(USHORT addr)
     if (addr >= REG_SERVO1 && addr <= REG_LED2) return TRUE;
     if (addr >= REG_PWM_ARR_G1 && addr <= REG_PWM_PSC_G4) return TRUE;
     if (addr >= REG_CAL_VOLT_GAIN && addr <= REG_CAL_CMD) return TRUE;
+    if (addr >= REG_GPIO_MODE0 && addr <= REG_GPIO_OUT3) return TRUE;
+    if (addr >= REG_IR_TX_CMD && addr <= REG_IR_TX_DATA) return TRUE;
+    if (addr >= REG_IR_LEAD_LOW_LO && addr <= REG_IR_BIT1_HI) return TRUE;
     return FALSE;
 }
 
@@ -102,6 +344,28 @@ static void apply_register(USHORT addr)
         /* Auto-clear CMD register immediately so the response echoes 0 and the
          * next write (even identical value) re-triggers the command. */
         g_modbus_registers[REG_CAL_CMD] = 0;
+    }
+    else if (addr >= REG_GPIO_MODE0 && addr <= REG_GPIO_MODE3)
+    {
+        uint8_t pin = (uint8_t)(addr - REG_GPIO_MODE0);
+        uint16_t mode = g_modbus_registers[addr] ? MY_GPIO_MODE_OUTPUT : MY_GPIO_MODE_INPUT;
+        g_modbus_registers[addr] = (mode == MY_GPIO_MODE_OUTPUT) ? 1 : 0;
+        gpio_set_mode(pin, (uint8_t)mode);
+    }
+    else if (addr >= REG_GPIO_OUT0 && addr <= REG_GPIO_OUT3)
+    {
+        uint8_t pin = (uint8_t)(addr - REG_GPIO_OUT0);
+        uint16_t state = g_modbus_registers[addr] ? MY_GPIO_HIGH : MY_GPIO_LOW;
+        g_modbus_registers[addr] = (state == MY_GPIO_HIGH) ? 1 : 0;
+        gpio_write(pin, (uint8_t)state);
+    }
+    else if (addr == REG_IR_TX_CMD)
+    {
+        g_modbus_registers[REG_IR_TX_CMD] = 0;
+    }
+    else if (addr == REG_IR_TX_DATA)
+    {
+        /* TX path remains reserved; register is reused as pulse-width debug mirror. */
     }
 }
 
@@ -193,6 +457,32 @@ void modbus_init(void)
     /* Expose calibration RAM to Modbus registers (calib_init() must be called before this) */
     modbus_sync_calib_to_regs();
 
+    /* Default GPIO state: all input, outputs cleared */
+    for (i = 0; i < 4; i++)
+    {
+        g_modbus_registers[REG_GPIO_MODE0 + i] = 0;
+        g_modbus_registers[REG_GPIO_OUT0 + i] = 0;
+        g_modbus_registers[REG_GPIO_IN0 + i] = 0;
+        gpio_set_mode((uint8_t)i, MY_GPIO_MODE_INPUT);
+    }
+
+    /* IR registers */
+    g_modbus_registers[REG_IR_TX_CMD] = 0;
+    g_modbus_registers[REG_IR_TX_DATA] = 0;
+    g_modbus_registers[REG_IR_RX_STATUS] = 0;
+    g_modbus_registers[REG_IR_RX_DATA] = 0;
+
+    /* IR timing parameters (adjustable) */
+    g_modbus_registers[REG_IR_LEAD_LOW_LO]  = 8500U;
+    g_modbus_registers[REG_IR_LEAD_LOW_HI]  = 9500U;
+    g_modbus_registers[REG_IR_LEAD_HIGH_LO] = 4000U;
+    g_modbus_registers[REG_IR_LEAD_HIGH_HI] = 5000U;
+    g_modbus_registers[REG_IR_BIT0_LO]      = 400U;
+    g_modbus_registers[REG_IR_BIT0_HI]      = 700U;
+    g_modbus_registers[REG_IR_BIT1_LO]      = 1500U;
+    g_modbus_registers[REG_IR_BIT1_HI]      = 1900U;
+    modbus_ir_init();
+
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
     printf("[MODBUS] eMBInit result: %d\r\n", eStatus);
@@ -207,6 +497,7 @@ void modbus_init(void)
 void modbus_update_sensors(void)
 {
     uint32_t tick = HAL_GetTick();
+    int i;
 
     /* System tick */
     g_modbus_registers[REG_SYS_TICK_L] = (uint16_t)(tick & 0xFFFF);
@@ -227,6 +518,20 @@ void modbus_update_sensors(void)
     g_modbus_registers[REG_ADC_RAW2] = adc_get_channel_value(ADC_CH_ANALOG3);
     g_modbus_registers[REG_ADC_RAW3] = adc_get_channel_value(ADC_CH_ANALOG4);
     g_modbus_registers[REG_ADC_RAW4] = adc_get_channel_value(ADC_CH_VOLTAGE);
+
+    /* GPIO snapshot */
+    for (i = 0; i < 4; i++)
+    {
+        g_modbus_registers[REG_GPIO_IN0 + i] = gpio_read((uint8_t)i) ? 1 : 0;
+    }
+
+    g_modbus_registers[REG_IR_TX_CMD] = (uint16_t)(g_ir_edge_count & 0xFFFFU);
+
+    if (g_modbus_registers[REG_IR_RX_STATUS] != IR_STATUS_IDLE &&
+        (tick - g_ir_last_frame_tick) > IR_LATCH_MS)
+    {
+        g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_IDLE;
+    }
 }
 
 void modbus_process(void)

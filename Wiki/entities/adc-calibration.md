@@ -1,125 +1,151 @@
-# ADC 校准模块
+# ADC 校准系统
 
-> 最后更新：2026-04-25
+## 概述
 
-## 概要
+本系统使用线性校准模型修正 ADC 测量误差：
+```
+V_corrected = gain × V_raw + offset
+```
 
-为 STM32F407 的 5 路模拟量采集（VOLTAGE + ANALOG1-4）提供线性校准能力，支持 RAM 即时生效 + Flash 持久化。校准公式 `y = gain * raw + offset`。
+校准参数存储在 STM32F407 的 Flash 中，支持掉电保存。
 
-## 路径
+---
 
-- 下位机：`e:\毕业设计\Software\F407\Drivers\BSP\Calib\`（新模块）
-- 上位机：`Software/modbus-dashboard/src/App.tsx` 校准面板 + `lib/modbus.ts` 校准 API
+## 硬件配置
 
-## 数据结构
+| 通道 | 引脚 | 默认用途 |
+|------|------|---------|
+| CH0 | PA0 | 模拟输入1 |
+| CH1 | PA1 | 模拟输入2 |
+| CH2 | PA2 | 模拟输入3 |
+| CH3 | PA3 | 模拟输入4 |
+| CH4 | PC0 | 电压检测 |
+
+---
+
+## 校准数据结构
 
 ```c
 typedef struct {
-    uint32_t magic;        // 0xC41BA71C
-    float    gain[5];      // 通道 0-4 增益，默认 1.0
-    float    offset[5];    // 通道 0-4 偏移，默认 0.0
-    uint32_t crc;          // 自定义累加校验 (sum << 1 ^ byte)
-} calib_data_t;            // 52 字节
+    uint32_t magic;           // 校验魔数: 0xCAFEBABA
+    float gain[5];            // 增益系数
+    float offset[5];          // 偏移系数
+    uint16_t crc16;           // CRC16 校验
+} calib_data_t;
 ```
 
-## Flash 布局
+**Flash 地址**: 0x08080000 (最后 4KB 扇区)
 
-| 参数 | 值 |
-|---|---|
-| 地址 | `0x08008000` |
-| 扇区 | `FLASH_SECTOR_2` |
-| 大小 | 16KB |
-| 擦除时间 | ~300ms（F407 typical）|
+---
 
-**选 Sector 2 原因**：固件只占 25KB（Sector 0-1），Sector 2 空闲且小（Sector 5-7 均为 128KB 擦除 1-2 秒，会阻塞 Modbus）。
+## 校准公式
 
-## Modbus 寄存器映射 (0x0050-0x0065)
+| 原始值 (mV) | 校准后 (mV) |
+|-------------|-------------|
+| `raw` | `gain × raw + offset` |
 
-见 [modbus-register-map.md](./modbus-register-map.md)。
+**默认值**:
+- gain = 1.0
+- offset = 0.0
 
-## 握手式 Flash 写入（解决 CRC 失败问题）
+---
 
-### 问题
+## Modbus 寄存器
 
-直接在 Modbus 回调里调 `calib_save_to_flash()` 会阻塞 1-3 秒：
-1. Flash 擦除期间 CPU 取指 stall，FreeModbus T3.5 定时器错乱
-2. Master 读超时，下次请求时串口缓冲残留旧响应 → CRC 失败
+详见 [寄存器映射](modbus-register-map.md#adc-校准-0x0050---0x0065)
 
-### 解决方案（两阶段）
+| 地址 | 名称 | 说明 |
+|------|------|------|
+| 0x0050 | REG_CALIB_CH0_GAIN | 通道0 增益 |
+| 0x0052 | REG_CALIB_CH0_OFFSET | 通道0 偏移 |
+| ... | ... | ... |
+| 0x0064 | REG_CALIB_CMD | 校准命令 |
 
-**阶段 1 — 下位机延迟 + 协议栈重启**（`modbus.c`）：
+---
+
+## 校准命令
+
+| 命令值 | 操作 | 说明 |
+|--------|------|------|
+| 0 | 无操作 | 空闲 |
+| 1 | 保存 | 将当前 gain/offset 写入 Flash |
+| 2 | 加载 | 从 Flash 读取校准参数 |
+| 3 | 复位 | 恢复默认参数 (gain=1, offset=0) |
+
+---
+
+## 校准流程
+
+### 1. 手动校准
+
+```
+1. 连接已知精确电压源到 ADC 通道
+2. 读取 REG_ANALOGx 原始值
+3. 计算校准系数:
+   gain = V_actual / V_raw
+   offset = 0 (理想ADC)
+4. 通过 Modbus 写入校准系数
+5. 发送 REG_CALIB_CMD = 1 保存到 Flash
+```
+
+### 2. 一键校准 (Web Dashboard)
+
+```
+1. 在上位机输入参考电压 (如 2500mV)
+2. 系统自动:
+   - 读取当前原始值
+   - 计算 gain = V_ref / V_raw
+   - 设置 offset = 0
+   - 自动写入寄存器
+   - 自动保存 Flash
+```
+
+---
+
+## Flash 操作
+
+### 读取流程
 
 ```c
-// 回调只置标志
-if (addr == REG_CAL_CMD) {
-    g_pending_calib_cmd = cmd;
-    g_modbus_registers[REG_CAL_CMD] = 0;  // 立即清零让 ACK 正常发
-}
+void calib_load_from_flash(void) {
+    calib_data_t* flash = (calib_data_t*)FLASH_BASE;
+    uint16_t crc = crc16_calc(flash, sizeof(calib_data_t) - 2);
 
-// 主循环 eMBPoll() 返回后处理
-static void modbus_process_pending_calib(void) {
-    if (cmd == CALIB_CMD_SAVE) {
-        eMBDisable();              // 关 Modbus
-        HAL_Delay(10);             // 等 T3.5 残帧
-        calib_save_to_flash();     // ~300ms
-        eMBInit(...); eMBEnable(); // 重建状态机，清 RX 缓冲
+    if (flash->magic == CALIB_MAGIC && flash->crc16 == crc) {
+        memcpy(&g_calib, flash, sizeof(calib_data_t));
+    } else {
+        calib_reset_defaults();  // 使用默认值
     }
 }
 ```
 
-**阶段 2 — 上位机暂停轮询静默等待**（`App.tsx`）：
-
-```tsx
-flashBusyRef.current = true     // 停所有轮询
-await client.saveCalibToFlash() // 下发 CMD=0x5A5A
-await sleep(1500)               // 静默窗口
-// 轮询 CAL_STATUS ≤5s
-flashBusyRef.current = false    // 恢复轮询
-```
-
-## 上电加载流程
+### 保存流程
 
 ```c
-void calib_init(void) {
-    calib_read_flash(&tmp);
-    if (calib_is_valid(&tmp))     // magic + CRC 双验证
-        memcpy(&g_calib, &tmp, sizeof(calib_data_t));
-    else
-        calib_reset_default();    // 全部 gain=1, offset=0
+esp_err_t calib_save_to_flash(void) {
+    // 1. 解锁 Flash
+    // 2. 擦除扇区
+    // 3. 计算 CRC16
+    // 4. 写入数据
+    // 5. 锁定 Flash
+    // 6. 验证写入
 }
 ```
 
-首次烧录 Flash 未擦除状态（全 0xFF），magic 不匹配 → 自动回退默认值，不会崩溃。
+---
 
-## API 总结
+## 注意事项
 
-### 下位机
+1. **Flash 写入寿命**: STM32F4 约 10 万次写入，避免频繁保存
+2. **校准时机**: 建议在系统上电后、首次使用前加载校准参数
+3. **温度影响**: 校准参数可能随温度漂移，高精度应用需温度补偿
 
-| 函数 | 说明 |
-|---|---|
-| `calib_init()` | 上电加载，demo.c `main` 调用 |
-| `calib_reset_default()` | 设置默认值到 RAM（gain=1, offset=0） |
-| `calib_save_to_flash()` | 擦除 Sector 2 + 写入，返回 HAL_StatusTypeDef |
-| `calib_apply(ch, raw)` | 对单通道原始值应用校准 |
-| `modbus_sync_calib_to_regs()` | 把 RAM 校准值同步到 Modbus 寄存器 |
+---
 
-### 上位机（`lib/modbus.ts`）
+## 故障排除
 
-| API | 说明 |
-|---|---|
-| `loadCalibration()` | 读 0x0050-0x0065 所有寄存器 |
-| `writeCalibChannel(ch, gain, offset)` | FC16 写单通道 gain/offset |
-| `saveCalibToFlash()` | FC06 写 CAL_CMD=0x5A5A |
-| `resetCalibToDefault()` | FC06 写 CAL_CMD=0xA5A5 |
-
-## 变更历史
-
-| 日期 | 变更 |
-|---|---|
-| 2026-04-24 | 初始实现，Sector 7 (128KB)，回调里同步写 Flash |
-| 2026-04-25 | 换 Sector 2（16KB 擦除 ~300ms）；推迟到主循环执行；Flash 前后 eMBDisable/eMBInit/eMBEnable 重建协议栈；上位机握手式停轮询 |
-
-## 相关实体
-
-- [modbus-register-map](./modbus-register-map.md) — 寄存器地址分配
-- [web-dashboard](./web-dashboard.md) — 上位机校准 UI
+| 现象 | 可能原因 | 解决方案 |
+|------|---------|---------|
+| 校准后数值不变 | 未发送保存命令 | 写入 REG_CALIB_CMD = 1 |
+| Flash 读取失败 | 数据损坏 | 发送 REG_CALIB_CMD = 3 复位 |
+| 数值异常大 | gain 值错误 | 检查 gain 是否为正数 |

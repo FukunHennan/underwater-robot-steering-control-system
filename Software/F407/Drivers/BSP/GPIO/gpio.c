@@ -29,9 +29,9 @@ typedef struct
 
 static const gpio_pin_config_t g_gpio_pin_table[GPIO_COUNT] = {
     {GPIOB, GPIO_PIN_12},   /* MY_GPIO_PIN_0 - PB12 */
-    {GPIOE, GPIO_PIN_6},    /* MY_GPIO_PIN_2 - PE6 */
-    {GPIOE, GPIO_PIN_5},    /* MY_GPIO_PIN_3 - PE5 */
-    {GPIOC, GPIO_PIN_4}     /* MY_GPIO_PIN_4 - PC4 */
+    {GPIOE, GPIO_PIN_6},    /* MY_GPIO_PIN_2 - PE6  */
+    {GPIOE, GPIO_PIN_5},    /* MY_GPIO_PIN_3 - PE5  */
+    {GPIOC, GPIO_PIN_4}     /* MY_GPIO_PIN_4 - PC4  */
 };
 
 /**

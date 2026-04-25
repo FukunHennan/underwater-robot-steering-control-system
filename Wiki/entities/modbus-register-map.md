@@ -1,54 +1,235 @@
 # Modbus 寄存器映射
 
-> 最后更新：2026-04-25
+**总计**: 126 个保持寄存器 (0x0000 - 0x007D)
 
-## 概要
+---
 
-STM32F407VET6 Modbus RTU 从站，地址 0x01，9600 8N1，共 **102 个保持寄存器**（REG_HOLDING_MAX=102），分 7 组。
+## 系统寄存器 (0x0000 - 0x0005)
 
-## 寄存器表
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0000 | DEVICE_ID | RO | 设备 ID: 0x0407 |
+| 0x0001 | FW_VERSION | RO | 固件版本号 |
+| 0x0002 | RUN_MODE | RW | 运行模式 (0=停止, 1=运行, 2=调试) |
+| 0x0003 | FAULT | RO | 故障状态位 |
+| 0x0004 | SYS_TICK_L | RO | 系统运行时间 (低16位, ms) |
+| 0x0005 | SYS_TICK_H | RO | 系统运行时间 (高16位, ms) |
 
-| 地址范围 | 名称 | 数量 | 权限 | 说明 |
-|---|---|---|---|---|
-| 0x0000-0x0005 | 系统寄存器 | 6 | R/部分RW | DEVICE_ID=0x0407, FW_VERSION=0x0300, RUN_MODE(RW), FAULT_CODE, SYS_TICK |
-| 0x0010-0x001B | 姿态寄存器 | 12 | R | Roll/Pitch/Yaw/GyroX/Y/Z（IEEE 754 float，每个 2 寄存器，大端字序） |
-| 0x0020-0x0029 | PWM 控制 | 10 | RW | SERVO1-8 占空比(500-2500μs) + LED1-2 占空比(0-1000) |
-| 0x0030-0x0039 | ADC 传感器 | 10 | R | 4 路模拟量 + 电压(×100V) + 5 路 ADC 原始值(12-bit) |
-| 0x0040-0x0047 | PWM 频率 | 8 | RW | 4 组定时器 ARR+PSC，freq=TIM_CLK/(psc+1)/(arr+1) |
-| 0x0048-0x004D | 气压计 | 6 | R | 气压(int32 Pa) + 海拔(int32 cm) + 温度(float ℃) |
-| 0x0050-0x0065 | ADC 校准 | 22 | RW | 5 通道 gain/offset (float×10) + CMD + STATUS |
+---
 
-## ADC 校准寄存器细节 (0x0050-0x0065)
+## 姿态数据 (0x0010 - 0x001B)
 
-| 偏移 | 字段 | 类型 | 说明 |
-|---|---|---|---|
-| 0x0050-0x0053 | CAL_VOLT_GAIN/OFF | 2×float | 通道 0 (VOLTAGE) 增益+偏移 |
-| 0x0054-0x0057 | CAL_AN1_GAIN/OFF | 2×float | 通道 1 (ANALOG1) |
-| 0x0058-0x005B | CAL_AN2_GAIN/OFF | 2×float | 通道 2 (ANALOG2) |
-| 0x005C-0x005F | CAL_AN3_GAIN/OFF | 2×float | 通道 3 (ANALOG3) |
-| 0x0060-0x0063 | CAL_AN4_GAIN/OFF | 2×float | 通道 4 (ANALOG4) |
-| 0x0064 | CAL_CMD | uint16 | 0x5A5A=保存到 Flash, 0xA5A5=恢复默认 |
-| 0x0065 | CAL_STATUS | uint16 | 0=idle, 1=OK, 0xFF=error |
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0010 | ROLL | RO | 横滚角 Roll (float, °) |
+| 0x0012 | PITCH | RO | 俯仰角 Pitch (float, °) |
+| 0x0014 | YAW | RO | 偏航角 Yaw (float, °) |
+| 0x0016 | GYRO_X | RO | 陀螺仪 X 轴 (float, °/s) |
+| 0x0018 | GYRO_Y | RO | 陀螺仪 Y 轴 (float, °/s) |
+| 0x001A | GYRO_Z | RO | 陀螺仪 Z 轴 (float, °/s) |
 
-**写命令即触发**：写 gain/offset 立即生效（RAM）；写 CMD=0x5A5A 延迟到 `modbus_process_pending_calib` 执行（避免 Flash 擦写阻塞 Modbus 响应）。
+**数据格式**: IEEE 754 单精度浮点，大端字序 (AB CD)
 
-## 写权限
+**示例**: 获取 Roll 角
+```
+发送: 01 03 00 10 00 02 CRCH CRCL
+响应: 01 03 04 [4字节浮点数据] CRCH CRCL
+```
 
-可写寄存器：
-- 0x0002 运行模式
-- 0x0020~0x0029 PWM 控制
-- 0x0040~0x0047 PWM 频率
-- 0x0050~0x0064 ADC 校准（含 CMD，不含 STATUS）
+---
 
-## 辅助函数
+## PWM 控制 (0x0020 - 0x0029)
 
-- `modbus_set_register_float()` — 写入 IEEE 754 浮点到 2 个寄存器
-- `modbus_set_register_int32()` — 写入 int32 到 2 个寄存器
-- `modbus_get_register_float()` — 从 2 个寄存器重组浮点
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0020 | SERVO1 | RW | 舵机1 (500-2500 μs) |
+| 0x0021 | SERVO2 | RW | 舵机2 (500-2500 μs) |
+| 0x0022 | SERVO3 | RW | 舵机3 (500-2500 μs) |
+| 0x0023 | SERVO4 | RW | 舵机4 (500-2500 μs) |
+| 0x0024 | SERVO5 | RW | 舵机5 (500-2500 μs) |
+| 0x0025 | SERVO6 | RW | 舵机6 (500-2500 μs) |
+| 0x0026 | SERVO7 | RW | 舵机7 (500-2500 μs) |
+| 0x0027 | SERVO8 | RW | 舵机8 (500-2500 μs) |
+| 0x0028 | LED1 | RW | LED1 亮度 (0-1000) |
+| 0x0029 | LED2 | RW | LED2 亮度 (0-1000) |
 
-## 变更历史
+**舵机角度转换**: `angle = (pulse_width - 1500) / 10` (范围 ±50°)
 
-| 日期 | 变更 |
-|---|---|
-| 2026-04-20 | 72→78：新增气压计寄存器组 0x0048-0x004D（6 个） |
-| 2026-04-25 | 78→102：新增 ADC 校准寄存器组 0x0050-0x0065（22 个，5 通道 gain/offset + CMD + STATUS） |
+---
+
+## ADC 数据 (0x0030 - 0x0039)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0030 | ANALOG1 | RO | 模拟通道1 (mV) |
+| 0x0031 | ANALOG2 | RO | 模拟通道2 (mV) |
+| 0x0032 | ANALOG3 | RO | 模拟通道3 (mV) |
+| 0x0033 | ANALOG4 | RO | 模拟通道4 (mV) |
+| 0x0034 | VOLTAGE | RO | 系统电压 (mV) |
+| 0x0035 | RAW0 | RO | ADC 原始值 CH0 |
+| 0x0036 | RAW1 | RO | ADC 原始值 CH1 |
+| 0x0037 | RAW2 | RO | ADC 原始值 CH2 |
+| 0x0038 | RAW3 | RO | ADC 原始值 CH3 |
+| 0x0039 | RAW4 | RO | ADC 原始值 CH4 |
+
+---
+
+## PWM 频率配置 (0x0040 - 0x0047)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0040 | PWM_ARR_G1 | RW | 定时器组1 ARR 值 |
+| 0x0041 | PWM_PSC_G1 | RW | 定时器组1 PSC 值 |
+| 0x0042 | PWM_ARR_G2 | RW | 定时器组2 ARR 值 |
+| 0x0043 | PWM_PSC_G2 | RW | 定时器组2 PSC 值 |
+| 0x0044 | PWM_ARR_G3 | RW | 定时器组3 ARR 值 |
+| 0x0045 | PWM_PSC_G3 | RW | 定时器组3 PSC 值 |
+| 0x0046 | PWM_ARR_G4 | RW | 定时器组4 ARR 值 |
+| 0x0047 | PWM_PSC_G4 | RW | 定时器组4 PSC 值 |
+
+**频率计算**: `f = 84MHz / (PSC+1) / (ARR+1)`
+
+| 组 | 定时器 | 默认 ARR | 默认 PSC | 默认频率 |
+|----|--------|---------|---------|---------|
+| 1 | TIM1/TIM8 | 19999 | 83 | 50Hz |
+| 2 | TIM2 | 19999 | 83 | 50Hz |
+| 3 | TIM3 | 19999 | 83 | 50Hz |
+| 4 | TIM4 | 19999 | 83 | 50Hz |
+
+---
+
+## 气压计数据 (0x0048 - 0x004D)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0048 | PRESSURE_H | RO | 气压 (int32, Pa) |
+| 0x004A | ALTITUDE_H | RO | 海拔 (int32, cm) |
+| 0x004C | BARO_TEMP | RO | 温度 (float, °C) |
+
+---
+
+## ADC 校准 (0x0050 - 0x0065)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0050 | CAL_CH0_GAIN | RW | 通道0 增益 (float) |
+| 0x0052 | CAL_CH0_OFFSET | RW | 通道0 偏移 (float) |
+| 0x0054 | CAL_CH1_GAIN | RW | 通道1 增益 (float) |
+| 0x0056 | CAL_CH1_OFFSET | RW | 通道1 偏移 (float) |
+| 0x0058 | CAL_CH2_GAIN | RW | 通道2 增益 (float) |
+| 0x005A | CAL_CH2_OFFSET | RW | 通道2 偏移 (float) |
+| 0x005C | CAL_CH3_GAIN | RW | 通道3 增益 (float) |
+| 0x005E | CAL_CH3_OFFSET | RW | 通道3 偏移 (float) |
+| 0x0060 | CAL_CH4_GAIN | RW | 通道4 增益 (float) |
+| 0x0062 | CAL_CH4_OFFSET | RW | 通道4 偏移 (float) |
+| 0x0064 | CAL_CMD | WO | 校准命令 (0=无, 1=保存, 2=加载, 3=复位) |
+
+**校准公式**: `corrected = gain × raw + offset`
+
+**Flash 地址**: 0x08080000 (最后 4KB 扇区)
+
+---
+
+## GPIO 扩展 (0x0066 - 0x006F)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0066 | GPIO_MODE0 | RW | GPIO0 模式 (0=输入, 1=输出) |
+| 0x0067 | GPIO_MODE2 | RW | GPIO2 模式 (0=输入, 1=输出) |
+| 0x0068 | GPIO_MODE3 | RW | GPIO3 模式 (0=输入, 1=输出) |
+| 0x0069 | GPIO_MODE4 | RW | GPIO4 模式 (0=输入, 1=输出) |
+| 0x006A | GPIO_OUT0 | RW | GPIO0 输出值 |
+| 0x006B | GPIO_OUT2 | RW | GPIO2 输出值 |
+| 0x006C | GPIO_OUT3 | RW | GPIO3 输出值 |
+| 0x006D | GPIO_OUT4 | RW | GPIO4 输出值 |
+| 0x006E | GPIO_IN0 | RO | GPIO0 输入值 |
+| 0x006F | GPIO_IN2 | RO | GPIO2 输入值 |
+
+**GPIO 引脚定义**:
+
+| GPIO编号 | 引脚 | 说明 |
+|---------|------|------|
+| GPIO0 | PB12 | 通用GPIO |
+| GPIO2 | PE6 | 通用GPIO |
+| GPIO3 | PE5 | 通用GPIO |
+| GPIO4 | PC4 | 通用GPIO |
+
+---
+
+## 红外遥控 (0x0070 - 0x0075)
+
+| 地址 | 名称 | 类型 | 说明 |
+|------|------|------|------|
+| 0x0070 | IR_TX_CMD | RW | 红外发送命令 (写入触发) |
+| 0x0071 | IR_TX_DATA | RW | 红外发送数据 |
+| 0x0072 | IR_RX_STATUS | RO | 红外接收状态 |
+| 0x0073 | IR_RX_DATA | RO | 红外接收数据 |
+
+**红外接收状态 (IR_RX_STATUS)**:
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | IDLE | 空闲 |
+| 1 | FRAME | 收到完整帧 |
+| 2 | REPEAT | 重复码 |
+| 3 | EDGE | 等待数据 |
+
+**接收数据格式**: `[7:0]=地址, [15:8]=命令`
+
+**硬件连接**: IR 接收器连接到 **PE4** (EXTI4)
+
+---
+
+## 红外解码参数 (0x0076 - 0x007D)
+
+| 地址 | 名称 | 类型 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| 0x0076 | IR_LEAD_LOW_LO | RW | 8500 | 引导码低时间下限 (μs) |
+| 0x0077 | IR_LEAD_LOW_HI | RW | 9500 | 引导码低时间上限 (μs) |
+| 0x0078 | IR_LEAD_HIGH_LO | RW | 4000 | 引导码高时间下限 (μs) |
+| 0x0079 | IR_LEAD_HIGH_HI | RW | 5000 | 引导码高时间上限 (μs) |
+| 0x007A | IR_BIT0_LO | RW | 400 | 数据"0"时间下限 (μs) |
+| 0x007B | IR_BIT0_HI | RW | 700 | 数据"0"时间上限 (μs) |
+| 0x007C | IR_BIT1_LO | RW | 1500 | 数据"1"时间下限 (μs) |
+| 0x007D | IR_BIT1_HI | RW | 1900 | 数据"1"时间上限 (μs) |
+
+**NEC 协议 timing 示意图**:
+
+```
+引导码:     ____                        ________
+           |    |                      |        |
+      9ms  |4.5ms                     |  4.5ms |
+   _______|    |______________________|        |______
+
+数据"0":       ___    ___               ___    ___
+              |   |  |   |             |   |  |   |
+         560μs|560μs                    |560μs|560μs|
+      ________|   |_____________________|   |________
+
+数据"1":       ______    ______        ______    ______
+              |      |  |      |      |      |  |      |
+         560μs|1680μs                    |1680μs|
+      ________|      |__________________|      |________
+```
+
+---
+
+## Modbus 功能码
+
+| 功能码 | 名称 | 支持 |
+|--------|------|------|
+| 0x03 | 读保持寄存器 (Read Holding Registers) | ✅ |
+| 0x06 | 写单个寄存器 (Write Single Register) | ✅ |
+| 0x10 | 写多个寄存器 (Write Multiple Registers) | ✅ |
+
+---
+
+## 通信参数
+
+| 参数 | 值 |
+|------|-----|
+| 从机地址 | 0x01 |
+| 波特率 | 9600 |
+| 数据位 | 8 |
+| 停止位 | 1 |
+| 校验位 | 无 |
