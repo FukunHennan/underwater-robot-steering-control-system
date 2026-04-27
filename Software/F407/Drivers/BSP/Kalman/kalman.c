@@ -1,9 +1,15 @@
 /**
  * @file    kalman.c
- * @brief   一维卡尔曼滤波器实现
+ * @brief   六通道一维卡尔曼滤波器实现
  */
 
 #include "kalman.h"
+
+/**
+ * @brief  全局6通道卡尔曼滤波器实例
+ *         供 Modbus 协议层直接读写 Q/R 参数
+ */
+kalman_filter_t g_kalman[KALMAN_CH_COUNT];
 
 /**
  * @brief  初始化卡尔曼滤波器
@@ -15,6 +21,35 @@ void kalman_init(kalman_filter_t *kf, float q, float r, float init_val)
     kf->q = q;
     kf->r = r;
     kf->k = 0.0f;
+}
+
+/**
+ * @brief  设置指定通道的 Q/R 参数（运行时可调）
+ * @param  ch   通道索引 (0-5)
+ * @param  q    过程噪声
+ * @param  r    观测噪声
+ */
+void kalman_set_params(uint8_t ch, float q, float r)
+{
+    if (ch < KALMAN_CH_COUNT)
+    {
+        g_kalman[ch].q = q;
+        g_kalman[ch].r = r;
+    }
+}
+
+/**
+ * @brief  复位所有滤波器状态（重新初始化）
+ */
+void kalman_reset_all(void)
+{
+    uint8_t i;
+    for (i = 0; i < KALMAN_CH_COUNT; i++)
+    {
+        float old_q = g_kalman[i].q;
+        float old_r = g_kalman[i].r;
+        kalman_init(&g_kalman[i], old_q, old_r, g_kalman[i].x);
+    }
 }
 
 /**

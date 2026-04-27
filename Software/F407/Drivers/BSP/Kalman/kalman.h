@@ -29,6 +29,23 @@ typedef struct
 } kalman_filter_t;
 
 /**
+ * @brief  6通道卡尔曼滤波器实例（全局可访问，供 Modbus 读写参数）
+ *
+ * 通道索引定义：
+ *   KALMAN_CH_ROLL = 0,   KALMAN_CH_PITCH = 1,   KALMAN_CH_YAW = 2,
+ *   KALMAN_CH_GYRO_X = 3, KALMAN_CH_GYRO_Y = 4,  KALMAN_CH_GYRO_Z = 5
+ */
+#define KALMAN_CH_COUNT  6
+#define KALMAN_CH_ROLL   0
+#define KALMAN_CH_PITCH  1
+#define KALMAN_CH_YAW    2
+#define KALMAN_CH_GYRO_X 3
+#define KALMAN_CH_GYRO_Y 4
+#define KALMAN_CH_GYRO_Z 5
+
+extern kalman_filter_t g_kalman[KALMAN_CH_COUNT];
+
+/**
  * @brief  初始化卡尔曼滤波器
  * @param  kf       滤波器实例
  * @param  q        过程噪声 Q（推荐 0.001 ~ 0.01）
@@ -54,5 +71,18 @@ float kalman_update(kalman_filter_t *kf, float measure, float gyro_rate, float d
  * @return 滤波后的估计值
  */
 float kalman_update_simple(kalman_filter_t *kf, float measure);
+
+/**
+ * @brief  设置指定通道的 Q/R 参数
+ * @param  ch   通道索引 (0-5)
+ * @param  q    过程噪声
+ * @param  r    观测噪声
+ */
+void kalman_set_params(uint8_t ch, float q, float r);
+
+/**
+ * @brief  复位所有滤波器状态（重新初始化）
+ */
+void kalman_reset_all(void);
 
 #endif

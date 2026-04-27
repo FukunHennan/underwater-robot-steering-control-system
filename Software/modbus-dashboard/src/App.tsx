@@ -1,82 +1,35 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Waves, Plug, PlugZap, RefreshCw, Activity, Thermometer, CloudRain,
   Gauge, Sliders, Cpu, AlertTriangle, Zap, FileText, LayoutDashboard, Trash2, Settings,
   Home, Compass, Target
 } from 'lucide-react'
 import { ModbusClient, type ConnectionState, type ModbusLog, type ReconnectInfo, type GPIOData, type IRData, REG, CAL_CH_NAMES } from './lib/modbus'
+import type {
+  SystemData, AttitudeData, PwmData, PwmFreqData, AdcData,
+  BarometerData, CalibData, MagnetometerData, KalmanData,
+  AxisMappingConfig, IRPreset, WaveformSeries, PwmFreqGroup,
+} from './lib/types'
+import {
+  cn, fmtFloat, fmtTemp,
+  SERVO_US_PER_DEG, clampDuty, dutyToAngle, angleToDuty,
+  loadAxisMapping, applyAxisMapping,
+} from './lib/utils'
+import {
+  KALMAN_CH_NAMES, SENSOR_AXIS_NAMES, DEFAULT_AXIS_CONFIG, PHYSICAL_AXES,
+  GPIO_LABELS, IR_STATUS_LABELS, IR_PRESETS, PWM_GROUPS,
+  modeLabels, stateLabel, MOUNT_STORAGE_KEY,
+} from './lib/presets'
+import { Card } from './components/common/Card'
+import { Metric } from './components/common/Metric'
+import { SystemCard } from './components/panels/SystemCard'
+import { BarometerCard } from './components/panels/BarometerCard'
+import { MagnetometerCard } from './components/panels/MagnetometerCard'
+import { GPIOCard } from './components/panels/GPIOCard'
+import { IRPanel } from './components/ir/IRPanel'
+import { usePolling } from './hooks/usePolling'
 
-// ======================== Types ========================
-
-interface SystemData {
-  deviceId: number; fwVersion: number; runMode: number;
-  faultCode: number; sysTick: number;
-}
-interface AttitudeData {
-  roll: number; pitch: number; yaw: number;
-  gyroX: number; gyroY: number; gyroZ: number;
-}
-interface PwmData { servos: number[]; leds: number[] }
-interface PwmFreqGroup { arr: number; psc: number }
-interface PwmFreqData { groups: PwmFreqGroup[] }
-interface AdcData { temps: number[]; voltage: number; adcRaw: number[] }
-interface BarometerData { pressure: number; altitude: number; temperature: number }
-interface CalibData { gains: number[]; offsets: number[]; status: number }
-
-const GPIO_LABELS = ['PB12', 'PE6', 'PE5', 'PC4'] as const
-const IR_STATUS_LABELS: Record<number, string> = {
-  0: '空闲',
-  1: '收到帧',
-  2: '重复码',
-}
-
-const PWM_GROUPS = [
-  { label: 'TIM4', clock: 84_000_000, channels: [0, 1, 2, 3], chLabels: ['CH1', 'CH2', 'CH3', 'CH4'] },
-  { label: 'TIM8', clock: 168_000_000, channels: [4, 5], chLabels: ['CH5', 'CH6'] },
-  { label: 'TIM3', clock: 84_000_000, channels: [6, 7], chLabels: ['CH7', 'CH8'] },
-  { label: 'TIM1', clock: 168_000_000, channels: [] as number[], chLabels: [] as string[], isLed: true, ledChannels: [0, 1], ledLabels: ['LED1', 'LED2'] },
-] as const
-
-// ======================== Helpers ========================
-
-const cn = (...classes: (string | false | undefined)[]) => classes.filter(Boolean).join(' ')
-
-/* Servo duty (500-2500μs) ↔ angle (°) with custom zero point.
-   Standard servo: 500μs=0°, 1500μs=90°, 2500μs=180° → 1000μs per 90° */
-const SERVO_US_PER_DEG = 1000 / 90
-const clampDuty = (d: number) => Math.max(500, Math.min(2500, Math.round(d)))
-const dutyToAngle = (duty: number, zero: number) => (duty - zero) / SERVO_US_PER_DEG
-const angleToDuty = (angle: number, zero: number) => clampDuty(zero + angle * SERVO_US_PER_DEG)
-
-function Card({ title, icon, children, className }: {
-  title: string; icon: React.ReactNode; children: React.ReactNode; className?: string
-}) {
-  return (
-    <div className={cn("rounded-lg border border-[--border] bg-[--bg-card] overflow-hidden", className)}>
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-[--border]">
-        {icon}
-        <h2 className="text-base font-semibold text-[--fg-primary]">{title}</h2>
-      </div>
-      <div className="p-5">{children}</div>
-    </div>
-  )
-}
-
-function Metric({ label, value, unit, color }: {
-  label: string; value: string; unit?: string; color?: string
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[11px] text-[--fg-muted] uppercase tracking-wider">{label}</span>
-      <div className="flex items-baseline gap-1.5">
-        <span className={cn("text-2xl font-mono font-bold", color || "text-[--fg-primary]")}>
-          {value}
-        </span>
-        {unit && <span className="text-sm text-[--fg-muted]">{unit}</span>}
-      </div>
-    </div>
-  )
-}
+// ======================== StatusDot (kept local - tightly coupled to header layout) ========================
 
 function StatusDot({ state }: { state: ConnectionState }) {
   const colors: Record<ConnectionState, string> = {
@@ -85,74 +38,448 @@ function StatusDot({ state }: { state: ConnectionState }) {
     disconnected: 'bg-[--fg-muted]',
     error: 'bg-[--danger]',
   }
-  return <span className={cn("inline-block w-2 h-2 rounded-full", colors[state])} />
+  return <span className={cn('inline-block w-2 h-2 rounded-full', colors[state])} />
 }
-
-const stateLabel: Record<ConnectionState, string> = {
-  connected: '已连接', connecting: '连接中...', disconnected: '未连接', error: '错误',
-}
-
-const modeLabels = ['待机', '手动', '自动']
 
 // ======================== 3D Attitude Visualization ========================
 
+/**
+ * 3D underwater vehicle attitude indicator using CSS 3D box faces.
+ * Each face shows a different view of the vehicle so it remains
+ * readable from any rotation angle.
+ *
+ *  Body dimensions: 200 (length) × 80 (width) × 60 (height)
+ */
 function AttitudeModel({ roll, pitch, yaw }: { roll: number; pitch: number; yaw: number }) {
+  const L = 180  // length
+  const R = 35   // radius of cylinder body
+
+  // Propeller rotation animation (visual spin effect based on yaw rate)
+  const propAngle = yaw * 3  // spin proportional to yaw
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      {/* 3D viewport */}
-      <div className="relative w-full h-72" style={{ perspective: '800px' }}>
+    <div className="flex flex-col items-center gap-3">
+      {/* 3D viewport with water background */}
+      <div className="relative w-full h-80 rounded-xl overflow-hidden"
+        style={{
+          perspective: '1000px',
+          background: 'linear-gradient(180deg, rgba(10,25,50,0.95) 0%, rgba(5,15,35,0.98) 100%)',
+        }}
+      >
+        {/* Water effect - light rays */}
+        <div className="absolute inset-0 opacity-10" style={{
+          background: 'radial-gradient(ellipse at 50% 0%, rgba(56,189,248,0.3) 0%, transparent 70%)',
+        }} />
+
+        {/* 3D model container */}
         <div
           className="absolute inset-0 flex items-center justify-center"
           style={{
             transformStyle: 'preserve-3d',
-            transform: `rotateZ(${-roll}deg) rotateX(${pitch}deg) rotateY(${-yaw}deg)`,
-            transition: 'transform 0.15s ease-out',
+            transform: `rotateY(${yaw}deg) rotateX(${-pitch}deg) rotateZ(${-roll}deg)`,
+            transition: 'transform 120ms ease-out',
           }}
         >
-          {/* Submarine body - top */}
-          <div className="absolute w-36 h-20 rounded-lg border-2 border-sky-500/60 bg-sky-500/10"
-            style={{ transform: 'translateZ(16px)' }}>
-            <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[9px] font-mono text-sky-400/80">TOP</div>
-            {/* Forward indicator */}
-            <div className="absolute top-1/2 -translate-y-1/2 right-2 w-0 h-0"
-              style={{ borderTop: '6px solid transparent', borderBottom: '6px solid transparent', borderLeft: '10px solid rgba(56,189,248,0.6)' }} />
-            {/* Center cross */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3">
-              <div className="absolute top-1/2 left-0 w-full h-px bg-sky-400/40" />
-              <div className="absolute top-0 left-1/2 w-px h-full bg-sky-400/40" />
+          {/* ====== MAIN CYLINDER BODY ====== */}
+          {/* Cylinder made of 24 vertical slices for smooth 3D tube */}
+          {Array.from({ length: 24 }).map((_, i) => {
+            const angle = (i * 15) * Math.PI / 180
+            const x = Math.cos(angle) * R
+            const y = Math.sin(angle) * R
+            const nextAngle = ((i + 1) * 15) * Math.PI / 180
+            const nx = Math.cos(nextAngle) * R
+            const ny = Math.sin(nextAngle) * R
+            const brightness = 0.3 + 0.4 * Math.cos(angle)  // lighting effect
+            return (
+              <div key={`side-${i}`} style={{
+                position: 'absolute',
+                width: L,
+                height: 1,  // thin strip
+                transformStyle: 'preserve-3d',
+                transform: `translateY(${y}px) translateZ(${x}px) rotateX(90deg)`,
+              }}>
+                <div style={{
+                  width: L,
+                  height: R * 2,
+                  background: `linear-gradient(90deg, 
+                    rgba(30,60,110,${brightness * 0.8}) 0%, 
+                    rgba(40,80,140,${brightness}) 50%, 
+                    rgba(25,50,90,${brightness * 0.8}) 100%)`,
+                  borderLeft: `1px solid rgba(56,189,248,${brightness * 0.3})`,
+                  borderRight: `1px solid rgba(56,189,248,${brightness * 0.3})`,
+                  opacity: 0.85,
+                }} />
+              </div>
+            )
+          })}
+
+          {/* ====== FRONT NOSE CONE (hemisphere) ====== */}
+          <div style={{
+            position: 'absolute',
+            width: R * 2,
+            height: R * 2,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${L / 2}px) translateZ(${R}px)`,
+          }}>
+            {Array.from({ length: 12 }).map((_, i) => {
+              const angle = (i * 15) * Math.PI / 180
+              const y = Math.sin(angle) * R
+              const z = Math.cos(angle) * R
+              const brightness = 0.4 + 0.5 * Math.cos(angle)
+              return (
+                <div key={`nose-${i}`} style={{
+                  position: 'absolute',
+                  width: 1,
+                  height: R * 2,
+                  transformStyle: 'preserve-3d',
+                  transform: `translateY(${y}px) translateZ(${z}px) rotateY(90deg)`,
+                }}>
+                  <div style={{
+                    width: R * 0.6,  // nose cone depth
+                    height: R * 2,
+                    background: `linear-gradient(90deg, 
+                      rgba(56,189,248,${brightness * 0.4}) 0%,
+                      rgba(40,80,140,${brightness * 0.6}) 100%)`,
+                    borderRadius: '0 50% 50% 0',
+                    opacity: 0.9,
+                  }} />
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ====== BACK STERN (flat cap) ====== */}
+          <div style={{
+            position: 'absolute',
+            width: R * 2,
+            height: R * 2,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${-L / 2}px) translateZ(${R}px) rotateY(90deg)`,
+          }}>
+            <div style={{
+              width: R * 2,
+              height: R * 2,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(25,50,90,0.9) 0%, rgba(15,35,65,0.95) 100%)',
+              border: `2px solid rgba(56,189,248,0.3)`,
+              boxShadow: 'inset 0 0 20px rgba(56,189,248,0.1)',
+            }} />
+          </div>
+
+          {/* ====== TOP DOME / CANOPY ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 80,
+            height: 40,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(20px) translateY(${-R * 0.6}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 80,
+              height: 40,
+              background: 'radial-gradient(ellipse at 50% 80%, rgba(56,189,248,0.25) 0%, rgba(30,60,110,0.15) 70%)',
+              borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
+              border: `1px solid rgba(56,189,248,0.3)`,
+              borderBottom: 'none',
+            }} />
+            {/* Dome windows */}
+            <div className="absolute" style={{ left: 20, top: 10, width: 10, height: 12, borderRadius: '50%', background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)' }} />
+            <div className="absolute" style={{ left: 35, top: 8, width: 10, height: 12, borderRadius: '50%', background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)' }} />
+            <div className="absolute" style={{ left: 50, top: 10, width: 10, height: 12, borderRadius: '50%', background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)' }} />
+          </div>
+
+          {/* ====== FRONT CAMERA ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 20,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${L / 2 + 10}px) translateZ(0) rotateY(90deg)`,
+          }}>
+            <div style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 40% 40%, rgba(239,68,68,0.4) 0%, rgba(150,20,20,0.6) 50%, rgba(80,10,10,0.8) 100%)',
+              border: `2px solid rgba(239,68,68,0.5)`,
+              boxShadow: '0 0 15px rgba(239,68,68,0.3), inset 0 0 8px rgba(0,0,0,0.5)',
+            }} />
+            {/* Camera lens ring */}
+            <div className="absolute inset-2 rounded-full" style={{ border: '1px solid rgba(239,68,68,0.3)' }} />
+          </div>
+
+          {/* ====== SEARCHLIGHT ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 16,
+            height: 16,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${L / 2 + 5}px) translateY(15px) translateZ(0) rotateY(90deg)`,
+          }}>
+            <div style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 40% 40%, rgba(251,191,36,0.5) 0%, rgba(200,150,30,0.3) 60%)',
+              border: `1px solid rgba(251,191,36,0.4)`,
+              boxShadow: '0 0 20px rgba(251,191,36,0.4)',
+            }} />
+            {/* Light beam cone */}
+            <div style={{
+              position: 'absolute',
+              left: 16,
+              top: -10,
+              width: 50,
+              height: 36,
+              background: 'linear-gradient(90deg, rgba(251,191,36,0.15) 0%, transparent 100%)',
+              clipPath: 'polygon(0 30%, 100% 0, 100% 100%, 0 70%)',
+            }} />
+          </div>
+
+          {/* ====== TOP THRUSTER (vertical) ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 30,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(30px) translateY(${-R - 8}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 30,
+              height: 20,
+              background: 'rgba(139,92,246,0.2)',
+              borderRadius: 4,
+              border: `1px solid rgba(139,92,246,0.4)`,
+            }} />
+            {/* Propeller blades */}
+            <div className="absolute inset-0 flex items-center justify-center" style={{
+              transform: `rotate(${propAngle}deg)`,
+            }}>
+              <div style={{ width: 24, height: 3, background: 'rgba(139,92,246,0.5)', borderRadius: 2 }} />
+              <div style={{ width: 3, height: 24, background: 'rgba(139,92,246,0.5)', borderRadius: 2, position: 'absolute' }} />
             </div>
           </div>
-          {/* Submarine body - bottom */}
-          <div className="absolute w-36 h-20 rounded-lg border-2 border-emerald-500/40 bg-emerald-500/8"
-            style={{ transform: 'translateZ(-16px)' }}>
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-mono text-emerald-400/60">BTM</div>
+
+          {/* ====== BOTTOM THRUSTER (vertical) ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 30,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(30px) translateY(${R + 8}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 30,
+              height: 20,
+              background: 'rgba(139,92,246,0.2)',
+              borderRadius: 4,
+              border: `1px solid rgba(139,92,246,0.4)`,
+            }} />
+            <div className="absolute inset-0 flex items-center justify-center" style={{
+              transform: `rotate(${-propAngle}deg)`,
+            }}>
+              <div style={{ width: 24, height: 3, background: 'rgba(139,92,246,0.5)', borderRadius: 2 }} />
+              <div style={{ width: 3, height: 24, background: 'rgba(139,92,246,0.5)', borderRadius: 2, position: 'absolute' }} />
+            </div>
           </div>
-          {/* Left side */}
-          <div className="absolute h-20 bg-amber-500/8 border-2 border-amber-500/30"
-            style={{ width: '32px', transform: 'rotateY(-90deg) translateZ(72px)', borderRadius: '4px' }}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-mono text-amber-400/50">L</div>
+
+          {/* ====== LEFT SIDE THRUSTER ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 30,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(-30px) translateZ(${-R - 8}px) rotateX(90deg)`,
+          }}>
+            <div style={{
+              width: 30,
+              height: 20,
+              background: 'rgba(139,92,246,0.2)',
+              borderRadius: 4,
+              border: `1px solid rgba(139,92,246,0.4)`,
+            }} />
+            <div className="absolute inset-0 flex items-center justify-center" style={{
+              transform: `rotate(${-propAngle * 0.8}deg)`,
+            }}>
+              <div style={{ width: 24, height: 3, background: 'rgba(139,92,246,0.5)', borderRadius: 2 }} />
+              <div style={{ width: 3, height: 24, background: 'rgba(139,92,246,0.5)', borderRadius: 2, position: 'absolute' }} />
+            </div>
           </div>
-          {/* Right side */}
-          <div className="absolute h-20 bg-amber-500/8 border-2 border-amber-500/30"
-            style={{ width: '32px', transform: 'rotateY(90deg) translateZ(72px)', borderRadius: '4px' }}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-mono text-amber-400/50">R</div>
+
+          {/* ====== RIGHT SIDE THRUSTER ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 30,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(-30px) translateZ(${R + 8}px) rotateX(90deg)`,
+          }}>
+            <div style={{
+              width: 30,
+              height: 20,
+              background: 'rgba(139,92,246,0.2)',
+              borderRadius: 4,
+              border: `1px solid rgba(139,92,246,0.4)`,
+            }} />
+            <div className="absolute inset-0 flex items-center justify-center" style={{
+              transform: `rotate(${propAngle * 0.8}deg)`,
+            }}>
+              <div style={{ width: 24, height: 3, background: 'rgba(139,92,246,0.5)', borderRadius: 2 }} />
+              <div style={{ width: 3, height: 24, background: 'rgba(139,92,246,0.5)', borderRadius: 2, position: 'absolute' }} />
+            </div>
           </div>
-          {/* Front */}
-          <div className="absolute w-36 bg-red-500/10 border-2 border-red-500/40"
-            style={{ height: '32px', transform: 'rotateX(90deg) translateZ(40px)', borderRadius: '4px' }}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-mono text-red-400/60">FWD ▶</div>
+
+          {/* ====== MAIN PROPELLER (back) ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 50,
+            height: 50,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${-L / 2 - 15}px) translateZ(${R}px) rotateY(90deg)`,
+          }}>
+            {/* Propeller hub */}
+            <div style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 40% 40%, rgba(168,130,76,0.6) 0%, rgba(100,80,40,0.8) 100%)',
+              border: `1px solid rgba(168,130,76,0.5)`,
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+            }} />
+            {/* Rotating blades */}
+            <div className="absolute inset-0 flex items-center justify-center" style={{
+              transform: `rotate(${propAngle}deg)`,
+            }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={`blade-${i}`} style={{
+                  position: 'absolute',
+                  width: 20,
+                  height: 6,
+                  background: `linear-gradient(90deg, rgba(168,130,76,0.7) 0%, rgba(168,130,76,0.2) 100%)`,
+                  borderRadius: '0 50% 50% 0',
+                  transform: `rotate(${i * 90}deg) translateX(8px)`,
+                }} />
+              ))}
+            </div>
           </div>
-          {/* Back */}
-          <div className="absolute w-36 bg-zinc-500/8 border-2 border-zinc-500/20"
-            style={{ height: '32px', transform: 'rotateX(-90deg) translateZ(40px)', borderRadius: '4px' }}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[8px] font-mono text-zinc-400/40">AFT</div>
+
+          {/* ====== TAIL FINS ====== */}
+          {/* Top horizontal fin */}
+          <div style={{
+            position: 'absolute',
+            width: 35,
+            height: 15,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${-L / 2 + 10}px) translateY(${-R - 5}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 35,
+              height: 15,
+              background: 'rgba(251,191,36,0.15)',
+              border: `1px solid rgba(251,191,36,0.4)`,
+              clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
+            }} />
+          </div>
+          {/* Bottom horizontal fin */}
+          <div style={{
+            position: 'absolute',
+            width: 35,
+            height: 15,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${-L / 2 + 10}px) translateY(${R + 5}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 35,
+              height: 15,
+              background: 'rgba(251,191,36,0.15)',
+              border: `1px solid rgba(251,191,36,0.4)`,
+              clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
+            }} />
+          </div>
+          {/* Vertical fin */}
+          <div style={{
+            position: 'absolute',
+            width: 30,
+            height: 20,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(${-L / 2 + 15}px) translateY(0) translateZ(${-R - 5}px) rotateX(90deg)`,
+          }}>
+            <div style={{
+              width: 30,
+              height: 20,
+              background: 'rgba(239,68,68,0.1)',
+              border: `1px solid rgba(239,68,68,0.4)`,
+              clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
+            }} />
+          </div>
+
+          {/* ====== ANTENNA / SENSOR MAST ====== */}
+          <div style={{
+            position: 'absolute',
+            width: 3,
+            height: 15,
+            transformStyle: 'preserve-3d',
+            transform: `translateX(50px) translateY(${-R - 15}px) translateZ(0)`,
+          }}>
+            <div style={{
+              width: 3,
+              height: 15,
+              background: 'linear-gradient(180deg, rgba(239,68,68,0.6) 0%, rgba(100,100,100,0.4) 100%)',
+              borderRadius: 2,
+            }} />
+            <div style={{
+              position: 'absolute',
+              top: -3,
+              left: -2,
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: 'rgba(239,68,68,0.6)',
+              boxShadow: '0 0 10px rgba(239,68,68,0.4)',
+            }} />
           </div>
         </div>
-        {/* Ground reference: horizon line */}
-        <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-[--fg-muted]/15" />
+
+        {/* Water particles / bubbles */}
+        <div className="absolute inset-0 pointer-events-none">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={`bubble-${i}`} className="absolute rounded-full" style={{
+              width: 3 + Math.random() * 5,
+              height: 3 + Math.random() * 5,
+              left: `${10 + Math.random() * 80}%`,
+              top: `${20 + Math.random() * 60}%`,
+              background: `rgba(56,189,248,${0.1 + Math.random() * 0.2})`,
+              animation: `bubbleFloat ${2 + Math.random() * 3}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 2}s`,
+            }} />
+          ))}
+        </div>
+
+        {/* Ground reference grid */}
+        <div className="absolute inset-x-0 bottom-0 h-20 opacity-20" style={{
+          background: 'linear-gradient(180deg, transparent 0%, rgba(56,189,248,0.1) 100%)',
+          backgroundImage: `repeating-linear-gradient(90deg, rgba(56,189,248,0.2) 0px, rgba(56,189,248,0.2) 1px, transparent 1px, transparent 40px),
+                           repeating-linear-gradient(0deg, rgba(56,189,248,0.2) 0px, rgba(56,189,248,0.2) 1px, transparent 1px, transparent 40px)`,
+          transform: 'perspective(500px) rotateX(60deg)',
+          transformOrigin: 'bottom',
+        }} />
+
         {/* Axis labels */}
-        <div className="absolute bottom-1 left-2 text-[9px] text-[--fg-muted]/40 font-mono">Roll {roll.toFixed(1)}° · Pitch {pitch.toFixed(1)}° · Yaw {yaw.toFixed(1)}°</div>
+        <div className="absolute bottom-2 left-2 px-2 py-1 rounded-md bg-black/40 text-[10px] text-[--fg-muted] font-mono">
+          Roll {roll.toFixed(1)}° · Pitch {pitch.toFixed(1)}° · Yaw {yaw.toFixed(1)}°
+        </div>
       </div>
+
+      {/* Bubble animation styles */}
+      <style>{`
+        @keyframes bubbleFloat {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+          50% { transform: translateY(-15px) scale(1.2); opacity: 0.6; }
+        }
+      `}</style>
     </div>
   )
 }
@@ -168,8 +495,6 @@ const WAVE_COLORS = {
   gyroY: '#a78bfa',  // violet-400
   gyroZ: '#fb923c',  // orange-400
 }
-
-interface WaveformSeries { label: string; color: string; data: number[] }
 
 function AttitudeWaveform({ history, showGyro }: { history: AttitudeData[]; showGyro: boolean }) {
   const W = 800, H = 280, PL = 44, PR = 10, PT = 10, PB = 24
@@ -253,7 +578,7 @@ export default function App() {
   const [logs, setLogs] = useState<ModbusLog[]>([])
   const [polling, setPolling] = useState(false)
   const [pollInterval, setPollInterval] = useState(500)
-  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'adc' | 'baro' | 'extio' | 'advanced'>('home')
+  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'adc' | 'baro' | 'gpio' | 'ir' | 'advanced'>('home')
 
   const [system, setSystem] = useState<SystemData | null>(null)
   const [attitude, setAttitude] = useState<AttitudeData | null>(null)
@@ -261,6 +586,7 @@ export default function App() {
   const [pwmFreq, setPwmFreq] = useState<PwmFreqData | null>(null)
   const [adc, setAdc] = useState<AdcData | null>(null)
   const [baro, setBaro] = useState<BarometerData | null>(null)
+  const [mag, setMag] = useState<MagnetometerData | null>(null)
   const [gpio, setGpio] = useState<GPIOData | null>(null)
   const [ir, setIr] = useState<IRData | null>(null)
   const [error, setError] = useState('')
@@ -284,8 +610,22 @@ export default function App() {
   })
   const [calibMsg, setCalibMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
   const [ioMsg, setIoMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
+
+  /* Kalman filter parameters state */
+  const [kalman, setKalman] = useState<KalmanData | null>(null)
+  const [kalmanQEdit, setKalmanQEdit] = useState<string[]>(Array(6).fill('0.001'))
+  const [kalmanREdit, setKalmanREdit] = useState<string[]>(Array(6).fill('0.1'))
+  const [kalmanMsg, setKalmanMsg] = useState<{ type: 'info' | 'ok' | 'err'; text: string } | null>(null)
+  const [kalmanChan, setKalmanChan] = useState(0) // 0-5 channel selector
+
+  /* Custom axis mapping state */
+  const [axisCfg, setAxisCfg] = useState<AxisMappingConfig>(loadAxisMapping)
   const [irTxCmd, setIrTxCmd] = useState('1')
   const [irTxData, setIrTxData] = useState('4660')
+  const [irTxPresetIndex, setIrTxPresetIndex] = useState(0)
+  const [irTxAddr, setIrTxAddr] = useState('0')
+  const [irTxAddrHex, setIrTxAddrHex] = useState('00')
+  const [irTxCmdHex, setIrTxCmdHex] = useState('45')
 
   /* IR timing parameters */
   const [irParams, setIrParams] = useState({
@@ -320,7 +660,6 @@ export default function App() {
 
   const draggingRef = useRef(false)
 
-  const pollingRef = useRef(false)
   const timerRef = useRef<number | null>(null)
   /* Flash 写入期间暂停所有轮询，避免串口污染 */
   const flashBusyRef = useRef(false)
@@ -337,7 +676,9 @@ export default function App() {
     setPwmFreq({ groups: [{ arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }] })
     setAdc({ temps: [25.6, 18.3, 31.2, 22.8], voltage: 11.8, adcRaw: [3128, 2234, 3812, 2786, 3654] })
     setBaro({ pressure: 101325, altitude: 2850, temperature: 24.6 })
+    setMag({ magX: 23.5, magY: -12.3, magZ: 45.8, temperature: 25.2 })
     setCalib({ gains: [1, 1, 1, 1, 1], offsets: [0, 0, 0, 0, 0], status: 0 })
+    setKalman({ q: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001], r: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1] })
     setGpio({ modes: [0, 1, 0, 1], outputs: [0, 1, 0, 1], inputs: [0, 1, 1, 0] })
     setIr({ txCmd: 0, txData: 0x1234, rxStatus: 0, rxData: 0x1234 })
     setLocalServos([1500, 1620, 1380, 1500, 1750, 1500, 1200, 1500])
@@ -370,6 +711,7 @@ export default function App() {
       loadCalibFromDevice().catch(() => null)
       client.readGPIO().then(setGpio).catch(() => null)
       client.readIR().then(setIr).catch(() => null)
+      loadKalmanFromDevice().catch(() => null)
     } catch (e: any) {
       setError(e.message)
     }
@@ -386,12 +728,14 @@ export default function App() {
     if (connState !== 'connected') return
     try {
       setError('')
-      const [sys, att, pwmData, freqData, adcData, gpioData, irData] = await Promise.all([
+      const [sys, att, pwmData, freqData, adcData, baroData, magData, gpioData, irData] = await Promise.all([
         client.readSystem().catch(() => null),
         client.readAttitude().catch(() => null),
         client.readPWM().catch(() => null),
         client.readPWMFreq().catch(() => null),
         client.readADC().catch(() => null),
+        client.readBarometer().catch(() => null),
+        client.readMagnetometer().catch(() => null),
         client.readGPIO().catch(() => null),
         client.readIR().catch(() => null),
       ])
@@ -400,6 +744,8 @@ export default function App() {
       if (pwmData) setPwm(pwmData)
       if (freqData) setPwmFreq(freqData)
       if (adcData) setAdc(adcData)
+      if (baroData) setBaro(baroData)
+      if (magData) setMag(magData)
       if (gpioData) setGpio(gpioData)
       if (irData) setIr(irData)
     } catch (e: any) {
@@ -424,6 +770,8 @@ export default function App() {
       setAdc(adcData)
       const baroData = await client.readBarometer()
       setBaro(baroData)
+      const magData = await client.readMagnetometer()
+      setMag(magData)
       const gpioData = await client.readGPIO()
       setGpio(gpioData)
       const irData = await client.readIR()
@@ -433,24 +781,15 @@ export default function App() {
     }
   }, [connState, client])
 
-  useEffect(() => {
-    if (!polling || connState !== 'connected') return
-    pollingRef.current = true
-    let cancelled = false
-
-    const loop = async () => {
-      while (pollingRef.current && !cancelled) {
-        /* Skip polling while Flash write is in progress, to keep serial silent */
-        if (!flashBusyRef.current) {
-          await pollSequential()
-        }
-        await new Promise(r => setTimeout(r, pollInterval))
-      }
-    }
-    loop()
-
-    return () => { cancelled = true; pollingRef.current = false }
-  }, [polling, connState, pollInterval, pollSequential])
+  /* Polling loop is managed by the usePolling hook. The hook owns its own
+   * cancellation ref so we capture it here to allow imperative stops from
+   * disconnect/toggle handlers below. */
+  const { pollingRef } = usePolling({
+    enabled: polling && connState === 'connected',
+    intervalMs: pollInterval,
+    pollFn: pollSequential,
+    isBusy: () => flashBusyRef.current,
+  })
 
   const togglePolling = () => {
     if (polling) {
@@ -487,13 +826,25 @@ export default function App() {
 
   const calibratedAttitude = attitude ? applyOffset(attitude) : null
 
+  /* Apply axis mapping for mount orientation (handles axis swap + sign flip + offset) */
+  const calibratedAttitudeWithMount = calibratedAttitude != null
+    ? applyAxisMapping(calibratedAttitude, axisCfg)
+    : null
+
   useEffect(() => {
-    if (attitude) setAttHistory(prev => [...prev.slice(-(WAVEFORM_MAX - 1)), applyOffset(attitude)])
-  }, [attitude, applyOffset])
+    if (calibratedAttitudeWithMount) setAttHistory(prev => [...prev.slice(-(WAVEFORM_MAX - 1)), calibratedAttitudeWithMount])
+  }, [calibratedAttitudeWithMount])
 
   const handleZeroCalibrate = () => {
-    if (attitude) {
-      setAttOffset({ ...attitude })
+    if (calibratedAttitudeWithMount) {
+      setAttOffset({
+        roll: attitude!.roll,
+        pitch: attitude!.pitch,
+        yaw: attitude!.yaw,
+        gyroX: attitude!.gyroX,
+        gyroY: attitude!.gyroY,
+        gyroZ: attitude!.gyroZ,
+      })
       setAttHistory([])
     }
   }
@@ -768,19 +1119,54 @@ export default function App() {
   }
 
   const handleIRSend = async () => {
-    const cmd = Number(irTxCmd)
-    const data = Number(irTxData)
-    if (!Number.isInteger(cmd) || !Number.isInteger(data)) {
-      setIoMsg({ type: 'err', text: '红外命令和数据必须是整数' })
+    const addr = parseInt(irTxAddr, 10) || 0
+    const cmd = parseInt(irTxData, 10) || 0
+    if (addr < 0 || addr > 255 || cmd < 0 || cmd > 255) {
+      setIoMsg({ type: 'err', text: '地址和命令必须是 0-255 的整数' })
       return
     }
     try {
-      await client.writeIRTx(cmd, data)
-      setIoMsg({ type: 'ok', text: `已写入红外占位寄存器 CMD=${cmd} DATA=${data}` })
+      await client.writeIRTx(addr, cmd)
+      setIoMsg({ type: 'ok', text: `已发送 NEC: ADDR=0x${addr.toString(16).toUpperCase().padStart(2,'0')} CMD=0x${cmd.toString(16).toUpperCase().padStart(2,'0')}` })
       await refreshExtIO()
     } catch (e: any) {
-      setIoMsg({ type: 'err', text: `红外寄存器写入失败: ${e.message}` })
+      setIoMsg({ type: 'err', text: `红外发送失败: ${e.message}` })
     }
+  }
+
+  const handleIRPresetSelect = (index: number) => {
+    setIrTxPresetIndex(index)
+    const preset = IR_PRESETS[index]
+    if (preset && preset.name !== '自定义') {
+      setIrTxAddr(preset.addr.toString())
+      setIrTxAddrHex(preset.addr.toString(16).toUpperCase().padStart(2, '0'))
+      setIrTxData(preset.cmd.toString())
+      setIrTxCmdHex(preset.cmd.toString(16).toUpperCase().padStart(2, '0'))
+    }
+  }
+
+  /* Snapshot the latest decoded IR frame to a JSON file on the host. */
+  const handleIRSaveRx = () => {
+    if (!ir) {
+      setIoMsg({ type: 'err', text: '无红外接收数据可保存' })
+      return
+    }
+    const data = {
+      timestamp: new Date().toISOString(),
+      rxStatus: ir.rxStatus,
+      rxStatusText: IR_STATUS_LABELS[ir.rxStatus] ?? `${ir.rxStatus}`,
+      rxData: ir.rxData,
+      rxDataHex: `0x${ir.rxData.toString(16).toUpperCase().padStart(4, '0')}`,
+    }
+    const text = JSON.stringify(data, null, 2)
+    const blob = new Blob([text], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `ir-receive-${new Date().toISOString().replace(/[:.]/g, '-')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setIoMsg({ type: 'ok', text: '红外接收数据已保存到计算机' })
   }
 
   const handleIRParamsRead = async () => {
@@ -838,14 +1224,96 @@ export default function App() {
     setIrMsg({ type: 'info', text: '已恢复默认参数（未写入下位机）' })
   }
 
+  /* ============ Kalman filter handlers ============ */
+
+  const loadKalmanFromDevice = useCallback(async () => {
+    try {
+      const params = await client.readKalmanParams()
+      const qArr = [params.qRoll, params.qPitch, params.qYaw, params.qGyroX, params.qGyroY, params.qGyroZ]
+      const rArr = [params.rRoll, params.rPitch, params.rYaw, params.rGyroX, params.rGyroY, params.rGyroZ]
+      setKalman({ q: qArr, r: rArr })
+      setKalmanQEdit(qArr.map(v => v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')))
+      setKalmanREdit(rArr.map(v => v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')))
+      return params
+    } catch (e: any) {
+      setKalmanMsg({ type: 'err', text: `读取失败: ${e.message}` })
+      return null
+    }
+  }, [client])
+
+  const handleKalmanRefresh = async () => {
+    setKalmanMsg({ type: 'info', text: '正在读取卡尔曼参数...' })
+    const params = await loadKalmanFromDevice()
+    if (params) setKalmanMsg({ type: 'ok', text: '已从下位机读取卡尔曼参数' })
+  }
+
+  const handleKalmanApply = async () => {
+    const parseVal = (str: string, def: number, min: number, max: number) => {
+      if (str === '' || str === undefined || str === null) return def
+      const v = parseFloat(str)
+      if (!isFinite(v) || isNaN(v)) return def
+      if (v < min) return min
+      if (v > max) return max
+      return v
+    }
+    const newQ: number[] = []
+    const newR: number[] = []
+    for (let i = 0; i < 6; i++) {
+      const q = parseVal(kalmanQEdit[i], 0.001, 0.0001, 1.0)
+      const r = parseVal(kalmanREdit[i], 0.1, 0.01, 10.0)
+      newQ.push(q)
+      newR.push(r)
+    }
+    try {
+      await client.writeKalmanParams({
+        qRoll: newQ[0], rRoll: newR[0],
+        qPitch: newQ[1], rPitch: newR[1],
+        qYaw: newQ[2], rYaw: newR[2],
+        qGyroX: newQ[3], rGyroX: newR[3],
+        qGyroY: newQ[4], rGyroY: newR[4],
+        qGyroZ: newQ[5], rGyroZ: newR[5],
+      })
+      setKalman({ q: newQ, r: newR })
+      // Update edit fields with actual applied values
+      setKalmanQEdit(newQ.map(v => v.toFixed(4)))
+      setKalmanREdit(newR.map(v => v.toFixed(4)))
+      setKalmanMsg({ type: 'ok', text: '卡尔曼参数已应用到下位机' })
+    } catch (e: any) {
+      setKalmanMsg({ type: 'err', text: `写入失败: ${e.message}` })
+    }
+  }
+
+  const handleKalmanReset = () => {
+    setKalmanQEdit(Array(6).fill('0.001'))
+    setKalmanREdit(Array(6).fill('0.1'))
+    setKalmanMsg({ type: 'info', text: '已恢复默认参数（未写入下位机）' })
+  }
+
+  const handleKalmanFilterReset = async () => {
+    if (!window.confirm('确认复位卡尔曼滤波器？\n滤波器状态将重新初始化。')) return
+    try {
+      await client.resetKalmanFilter()
+      setKalmanMsg({ type: 'ok', text: '卡尔曼滤波器已复位' })
+    } catch (e: any) {
+      setKalmanMsg({ type: 'err', text: `复位失败: ${e.message}` })
+    }
+  }
+
+  /* ============ Axis mapping handlers ============ */
+
+  const updateAxisConfig = (partial: Partial<AxisMappingConfig>) => {
+    const newCfg = { ...axisCfg, ...partial }
+    setAxisCfg(newCfg)
+    try {
+      localStorage.setItem(MOUNT_STORAGE_KEY, JSON.stringify(newCfg))
+    } catch { /* ignore */ }
+  }
+
   const calcFreq = (group: number) => {
     const clk = PWM_GROUPS[group].clock
     const { arr, psc } = localFreq[group]
     return clk / (psc + 1) / (arr + 1)
   }
-
-  const fmtFloat = (v: number) => v.toFixed(2)
-  const fmtTemp = (v: number) => v.toFixed(1)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -863,12 +1331,12 @@ export default function App() {
           <nav className="flex items-center gap-1 bg-[--bg-input] rounded-md p-1 overflow-x-auto">
             {([
               { id: 'home',     label: '首页',    icon: <Home className="w-3.5 h-3.5" /> },
-              { id: 'system',   label: '系统',    icon: <Cpu className="w-3.5 h-3.5" /> },
               { id: 'attitude', label: '姿态',    icon: <Compass className="w-3.5 h-3.5" /> },
               { id: 'pwm',      label: 'PWM',     icon: <Sliders className="w-3.5 h-3.5" /> },
               { id: 'adc',      label: 'ADC',     icon: <Thermometer className="w-3.5 h-3.5" /> },
               { id: 'baro',     label: '气压计',  icon: <CloudRain className="w-3.5 h-3.5" /> },
-              { id: 'extio',    label: '扩展IO',  icon: <Zap className="w-3.5 h-3.5" /> },
+              { id: 'gpio',     label: 'GPIO',    icon: <Zap className="w-3.5 h-3.5" /> },
+              { id: 'ir',       label: '红外',    icon: <Zap className="w-3.5 h-3.5" /> },
               { id: 'advanced', label: '高级',    icon: <Settings className="w-3.5 h-3.5" />, badge: logs.length },
             ] as const).map(tab => (
               <button
@@ -953,29 +1421,19 @@ export default function App() {
       <main className="flex-1 p-4 grid grid-cols-12 gap-4 max-w-[1600px] mx-auto w-full">
         {/* System Status - home + system */}
         {(view === 'home' || view === 'system') && (
-        <Card title="系统状态" icon={<Cpu className="w-4 h-4 text-[--accent]" />} className={cn(view === 'system' ? "col-span-12 lg:col-span-6" : "col-span-12 lg:col-span-3")}>
-          <div className="grid grid-cols-2 gap-4">
-            <Metric label="设备ID" value={system ? `0x${system.deviceId.toString(16).toUpperCase().padStart(4, '0')}` : '--'} />
-            <Metric label="固件版本" value={system ? `V${(system.fwVersion >> 8)}.${system.fwVersion & 0xff}` : '--'} />
-            <Metric label="运行模式" value={system ? modeLabels[system.runMode] || `${system.runMode}` : '--'}
-              color={system?.runMode === 2 ? 'text-[--success]' : system?.runMode === 1 ? 'text-[--warning]' : undefined} />
-            <Metric label="故障码" value={system ? (system.faultCode === 0 ? '正常' : `0x${system.faultCode.toString(16)}`) : '--'}
-              color={system?.faultCode ? 'text-[--danger]' : 'text-[--success]'} />
-            <Metric label="运行时间" value={system ? `${(system.sysTick / 1000).toFixed(1)}` : '--'} unit="秒" />
-          </div>
-        </Card>
+          <SystemCard system={system} expanded={view === 'system'} />
         )}
 
         {/* Attitude data + 3D model - home + attitude */}
         {(view === 'home' || view === 'attitude') && (
         <Card title="姿态数据 (MS901M)" icon={<Activity className="w-4 h-4 text-emerald-400" />} className="col-span-12 lg:col-span-5">
           <div className="grid grid-cols-3 gap-x-6 gap-y-4">
-            <Metric label="Roll 横滚" value={calibratedAttitude ? fmtFloat(calibratedAttitude.roll) : '--'} unit="°" color="text-sky-400" />
-            <Metric label="Pitch 俯仰" value={calibratedAttitude ? fmtFloat(calibratedAttitude.pitch) : '--'} unit="°" color="text-emerald-400" />
-            <Metric label="Yaw 航向" value={calibratedAttitude ? fmtFloat(calibratedAttitude.yaw) : '--'} unit="°" color="text-amber-400" />
-            <Metric label="Gyro X" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroX) : '--'} unit="°/s" />
-            <Metric label="Gyro Y" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroY) : '--'} unit="°/s" />
-            <Metric label="Gyro Z" value={calibratedAttitude ? fmtFloat(calibratedAttitude.gyroZ) : '--'} unit="°/s" />
+            <Metric label="Roll 横滚" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.roll) : '--'} unit="°" color="text-sky-400" />
+            <Metric label="Pitch 俯仰" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.pitch) : '--'} unit="°" color="text-emerald-400" />
+            <Metric label="Yaw 航向" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.yaw) : '--'} unit="°" color="text-amber-400" />
+            <Metric label="Gyro X" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.gyroX) : '--'} unit="°/s" />
+            <Metric label="Gyro Y" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.gyroY) : '--'} unit="°/s" />
+            <Metric label="Gyro Z" value={calibratedAttitudeWithMount ? fmtFloat(calibratedAttitudeWithMount.gyroZ) : '--'} unit="°/s" />
           </div>
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[--border]">
             <button onClick={handleZeroCalibrate} disabled={!attitude}
@@ -995,14 +1453,219 @@ export default function App() {
         </Card>
         )}
 
+        {/* Magnetometer (MS901M) - home + attitude */}
+        {(view === 'home' || view === 'attitude') && (
+          <MagnetometerCard mag={mag} expanded={view === 'attitude'} />
+        )}
+
         {/* 3D Attitude Model - attitude only */}
         {view === 'attitude' && (
         <Card title="姿态可视化" icon={<Activity className="w-4 h-4 text-sky-400" />} className="col-span-12 lg:col-span-4">
           <AttitudeModel
-            roll={calibratedAttitude?.roll ?? 0}
-            pitch={calibratedAttitude?.pitch ?? 0}
-            yaw={calibratedAttitude?.yaw ?? 0}
+            roll={calibratedAttitudeWithMount?.roll ?? 0}
+            pitch={calibratedAttitudeWithMount?.pitch ?? 0}
+            yaw={calibratedAttitudeWithMount?.yaw ?? 0}
           />
+        </Card>
+        )}
+
+        {/* Custom Axis Mapping - attitude only */}
+        {view === 'attitude' && (
+        <Card title="传感器安装方向" icon={<Compass className="w-4 h-4 text-violet-400" />} className="col-span-12">
+          <div className="space-y-3">
+            <div className="rounded bg-violet-500/10 border border-violet-500/20 px-3 py-2 text-xs text-violet-300 leading-relaxed">
+              为每个物理轴选择传感器轴来源、方向和偏移角度。解决俯仰角和横滚角互换的问题。设置保存在浏览器中。
+            </div>
+
+            {/* 3 physical axes: Roll, Pitch, Yaw */}
+            {PHYSICAL_AXES.map((axis) => {
+              const sourceKey = `${axis.key}Source` as keyof AxisMappingConfig
+              const signKey = `${axis.key}Sign` as keyof AxisMappingConfig
+              const offsetKey = `${axis.key}Offset` as keyof AxisMappingConfig
+              const source = axisCfg[sourceKey] as 0 | 1 | 2
+              const sign = axisCfg[signKey] as 1 | -1
+              const offset = axisCfg[offsetKey] as number
+
+              return (
+                <div key={axis.key} className="bg-[--bg-input] rounded-lg p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-bold ${axis.color}`}>{axis.label}</span>
+                    <span className="text-[10px] text-[--fg-muted]">→ 传感器轴:</span>
+                    {/* Source selector */}
+                    <div className="flex gap-1">
+                      {([0, 1, 2] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => updateAxisConfig({ [sourceKey]: s } as Partial<AxisMappingConfig>)}
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                            source === s
+                              ? `bg-${axis.accent}-500/30 text-${axis.accent}-300 border border-${axis.accent}-500/50`
+                              : "bg-[--bg-card] text-[--fg-muted] hover:text-[--fg-primary]"
+                          )}
+                        >{SENSOR_AXIS_NAMES[s]}</button>
+                      ))}
+                    </div>
+                    {/* Sign toggle */}
+                    <button
+                      onClick={() => updateAxisConfig({ [signKey]: (sign * -1) as 1 | -1 } as Partial<AxisMappingConfig>)}
+                      className={cn(
+                        "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                        sign === 1
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                          : "bg-red-500/20 text-red-400 border border-red-500/40"
+                      )}
+                    >{sign === 1 ? '+ 正向' : '- 反向'}</button>
+                  </div>
+                  {/* Offset input */}
+                  <div className="flex items-center gap-2 ml-1">
+                    <span className="text-[10px] text-[--fg-muted]">偏移角度:</span>
+                    <input
+                      type="number"
+                      value={offset}
+                      onChange={(e) => updateAxisConfig({ [offsetKey]: parseFloat(e.target.value) || 0 } as Partial<AxisMappingConfig>)}
+                      className="w-16 bg-[--bg-card] border border-[--border] rounded px-1.5 py-0.5 text-xs font-mono text-[--fg-primary] focus:outline-none focus:border-violet-400/50"
+                    />
+                    <span className="text-[10px] text-[--fg-muted]">°</span>
+                    <span className="text-[10px] text-[--fg-muted] ml-auto font-mono">
+                      = {sign > 0 ? '' : '-'}{SENSOR_AXIS_NAMES[source]}{offset !== 0 ? ` ${offset > 0 ? '+' : ''}${offset}°` : ''}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 pt-2 border-t border-[--border]">
+              <button onClick={() => updateAxisConfig(DEFAULT_AXIS_CONFIG)}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-gray-500/20 text-gray-400 hover:bg-gray-500/30 transition-colors">
+                恢复默认</button>
+            </div>
+          </div>
+        </Card>
+        )}
+
+        {/* Kalman Filter Parameters - attitude only */}
+        {view === 'attitude' && (
+        <Card title="卡尔曼滤波参数" icon={<Sliders className="w-4 h-4 text-cyan-400" />} className="col-span-12">
+          <div className="space-y-3">
+            <div className="rounded bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs text-cyan-300 leading-relaxed">
+              调整 Q (过程噪声) 和 R (测量噪声) 参数，实时控制滤波效果。Q↑ → 响应变快，平滑度↓；R↑ → 响应变慢，平滑度↑。
+            </div>
+
+            {kalmanMsg && (
+              <div className={cn(
+                "px-2 py-1 rounded text-[11px] font-mono",
+                kalmanMsg.type === 'ok' && "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
+                kalmanMsg.type === 'err' && "bg-red-500/15 text-red-400 border border-red-500/30",
+                kalmanMsg.type === 'info' && "bg-sky-500/15 text-sky-400 border border-sky-500/30",
+              )}>{kalmanMsg.text}</div>
+            )}
+
+            {/* Channel selector tabs */}
+            <div className="flex flex-wrap gap-1">
+              {KALMAN_CH_NAMES.map((name, i) => (
+                <button
+                  key={i}
+                  onClick={() => setKalmanChan(i)}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] font-medium transition-colors",
+                    kalmanChan === i
+                      ? "bg-cyan-500/30 text-cyan-300 border border-cyan-500/50"
+                      : "bg-[--bg-input] text-[--fg-muted] hover:text-[--fg-primary]"
+                  )}
+                >{name}</button>
+              ))}
+            </div>
+
+            {/* Selected channel controls */}
+            <div className="bg-[--bg-input] rounded-lg p-4">
+              <div className="text-sm font-semibold text-[--fg-primary] mb-3">{KALMAN_CH_NAMES[kalmanChan]}</div>
+              <div className="grid grid-cols-12 gap-4 items-center">
+                {/* Q slider */}
+                <div className="col-span-5">
+                  <div className="text-[10px] text-[--fg-muted] uppercase mb-1.5">过程噪声 Q</div>
+                  <input type="range" min="-4" max="0" step="0.01"
+                    value={Math.log10(parseFloat(kalmanQEdit[kalmanChan]) || 0.001)}
+                    onChange={e => {
+                      const v = Math.pow(10, parseFloat(e.target.value))
+                      setKalmanQEdit(prev => { const n = [...prev]; n[kalmanChan] = v.toFixed(4); return n })
+                    }}
+                    className="w-full accent-cyan-400" />
+                  <div className="flex items-center gap-1 mt-1">
+                    <input type="text" value={kalmanQEdit[kalmanChan]}
+                      onChange={e => setKalmanQEdit(prev => { const n = [...prev]; n[kalmanChan] = e.target.value; return n })}
+                      className="w-20 bg-[--bg-card] border border-[--border] rounded px-2 py-0.5 text-xs font-mono text-[--fg-primary] focus:outline-none focus:border-cyan-400/50" />
+                    <span className="text-[10px] text-[--fg-muted]">范围 0.0001-1.0</span>
+                  </div>
+                </div>
+                {/* R slider */}
+                <div className="col-span-5">
+                  <div className="text-[10px] text-[--fg-muted] uppercase mb-1.5">测量噪声 R</div>
+                  <input type="range" min="-2" max="1" step="0.01"
+                    value={Math.log10(parseFloat(kalmanREdit[kalmanChan]) || 0.1)}
+                    onChange={e => {
+                      const v = Math.pow(10, parseFloat(e.target.value))
+                      setKalmanREdit(prev => { const n = [...prev]; n[kalmanChan] = v.toFixed(4); return n })
+                    }}
+                    className="w-full accent-cyan-400" />
+                  <div className="flex items-center gap-1 mt-1">
+                    <input type="text" value={kalmanREdit[kalmanChan]}
+                      onChange={e => setKalmanREdit(prev => { const n = [...prev]; n[kalmanChan] = e.target.value; return n })}
+                      className="w-20 bg-[--bg-card] border border-[--border] rounded px-2 py-0.5 text-xs font-mono text-[--fg-primary] focus:outline-none focus:border-cyan-400/50" />
+                    <span className="text-[10px] text-[--fg-muted]">范围 0.01-10.0</span>
+                  </div>
+                </div>
+                {/* Preset buttons */}
+                <div className="col-span-2 flex flex-col gap-1.5">
+                  <button onClick={() => { setKalmanQEdit(prev => { const n = [...prev]; n[kalmanChan] = '0.0001'; return n }); setKalmanREdit(prev => { const n = [...prev]; n[kalmanChan] = '0.5'; return n }) }}
+                    className="px-2 py-0.5 rounded text-[10px] bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors">静态模式</button>
+                  <button onClick={() => { setKalmanQEdit(prev => { const n = [...prev]; n[kalmanChan] = '0.001'; return n }); setKalmanREdit(prev => { const n = [...prev]; n[kalmanChan] = '0.1'; return n }) }}
+                    className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors">稳定模式</button>
+                  <button onClick={() => { setKalmanQEdit(prev => { const n = [...prev]; n[kalmanChan] = '0.01'; return n }); setKalmanREdit(prev => { const n = [...prev]; n[kalmanChan] = '0.05'; return n }) }}
+                    className="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">动态模式</button>
+                </div>
+              </div>
+            </div>
+
+            {/* All channels overview table */}
+            <div className="grid grid-cols-[80px_1fr_1fr_72px] gap-1 items-center text-[10px] text-[--fg-muted] uppercase px-1">
+              <div>通道</div>
+              <div>Q 值</div>
+              <div>R 值</div>
+              <div className="text-right">效果</div>
+            </div>
+            {KALMAN_CH_NAMES.map((name, ch) => {
+              const qVal = parseFloat(kalmanQEdit[ch]) || 0.001
+              const rVal = parseFloat(kalmanREdit[ch]) || 0.1
+              return (
+                <div key={ch} className="grid grid-cols-[80px_1fr_1fr_72px] gap-1 items-center rounded bg-[--bg-input]/40 px-2 py-1.5">
+                  <div className="text-xs font-semibold text-[--fg-primary]">{name}</div>
+                  <div className="text-xs font-mono text-cyan-400">{qVal.toFixed(4)}</div>
+                  <div className="text-xs font-mono text-emerald-400">{rVal.toFixed(4)}</div>
+                  <div className="text-[10px] text-[--fg-muted] text-right">
+                    {qVal > 0.01 ? '快响应' : qVal < 0.0005 ? '极平滑' : '平衡'}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[--border]">
+              <button onClick={handleKalmanRefresh} disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 flex items-center gap-1 transition-colors">
+                <RefreshCw className="w-3 h-3" />从下位机读取</button>
+              <button onClick={handleKalmanApply} disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-40 transition-colors">
+                应用参数</button>
+              <button onClick={handleKalmanReset}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-gray-500/20 text-gray-400 hover:bg-gray-500/30 transition-colors">
+                恢复默认</button>
+              <button onClick={handleKalmanFilterReset} disabled={connState !== 'connected'}
+                className="px-3 py-1 rounded text-[11px] font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 disabled:opacity-40 transition-colors">
+                复位滤波器</button>
+            </div>
+          </div>
         </Card>
         )}
 
@@ -1154,43 +1817,7 @@ export default function App() {
 
         {/* Barometer Data (MS901M) - home + baro */}
         {(view === 'home' || view === 'baro') && (
-        <Card title="气压计 (MS901M)" icon={<CloudRain className="w-4 h-4 text-cyan-400" />} className="col-span-12 lg:col-span-3">
-          <div className="space-y-3">
-            <div className="bg-[--bg-input] rounded px-3 py-2">
-              <div className="text-[10px] text-[--fg-muted] uppercase">气压</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-mono font-bold text-cyan-400">
-                  {baro ? (baro.pressure / 100).toFixed(2) : '--'}
-                </span>
-                <span className="text-xs text-[--fg-muted]">hPa</span>
-              </div>
-              {baro && (
-                <div className="text-[10px] text-[--fg-muted] font-mono mt-0.5">{baro.pressure} Pa</div>
-              )}
-            </div>
-            <div className="bg-[--bg-input] rounded px-3 py-2">
-              <div className="text-[10px] text-[--fg-muted] uppercase">海拔高度</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-mono font-bold text-emerald-400">
-                  {baro ? (baro.altitude / 100).toFixed(2) : '--'}
-                </span>
-                <span className="text-xs text-[--fg-muted]">m</span>
-              </div>
-              {baro && (
-                <div className="text-[10px] text-[--fg-muted] font-mono mt-0.5">{baro.altitude} cm</div>
-              )}
-            </div>
-            <div className="bg-[--bg-input] rounded px-3 py-2">
-              <div className="text-[10px] text-[--fg-muted] uppercase">温度</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-mono font-bold text-amber-400">
-                  {baro ? baro.temperature.toFixed(1) : '--'}
-                </span>
-                <span className="text-xs text-[--fg-muted]">°C</span>
-              </div>
-            </div>
-          </div>
-        </Card>
+          <BarometerCard baro={baro} />
         )}
 
         {/* Servo Control - pwm only (with angle + zero-point) */}
@@ -1346,198 +1973,42 @@ export default function App() {
         </Card>
         )}
 
-        {view === 'extio' && (
-          <>
-            <Card title="GPIO 扩展接口" icon={<Zap className="w-4 h-4 text-emerald-400" />} className="col-span-12 lg:col-span-7">
-          <div className="space-y-3">
-            {ioMsg && (
-              <div className={cn(
-                "px-2 py-1 rounded text-[11px] font-mono",
-                ioMsg.type === 'ok' && "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
-                ioMsg.type === 'err' && "bg-red-500/15 text-red-400 border border-red-500/30",
-                ioMsg.type === 'info' && "bg-sky-500/15 text-sky-400 border border-sky-500/30",
-              )}>{ioMsg.text}</div>
-            )}
-            <div className="grid grid-cols-[90px_90px_1fr_1fr] gap-2 items-center text-[10px] text-[--fg-muted] uppercase px-1">
-              <div>引脚</div>
-              <div>模式</div>
-              <div>输出</div>
-              <div>输入状态</div>
-            </div>
-            {GPIO_LABELS.map((label, ch) => (
-              <div key={label} className="grid grid-cols-[90px_90px_1fr_1fr] gap-2 items-center rounded bg-[--bg-input]/40 px-2 py-2">
-                <div>
-                  <div className="text-sm font-mono font-semibold text-[--fg-primary]">{label}</div>
-                  <div className="text-[10px] text-[--fg-muted]">GPIO{ch}</div>
-                </div>
-                <select
-                  value={gpio?.modes[ch] ?? 0}
-                  onChange={e => handleGPIOModeChange(ch, Number(e.target.value))}
-                  disabled={connState !== 'connected'}
-                  className="bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs text-[--fg-primary]"
-                >
-                  <option value={0}>输入</option>
-                  <option value={1}>输出</option>
-                </select>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleGPIOOutputChange(ch, 0)}
-                    disabled={connState !== 'connected' || (gpio?.modes[ch] ?? 0) !== 1}
-                    className="px-3 py-1 rounded text-xs bg-zinc-500/20 text-zinc-300 hover:bg-zinc-500/30 disabled:opacity-40 transition-colors"
-                  >低</button>
-                  <button
-                    onClick={() => handleGPIOOutputChange(ch, 1)}
-                    disabled={connState !== 'connected' || (gpio?.modes[ch] ?? 0) !== 1}
-                    className="px-3 py-1 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 transition-colors"
-                  >高</button>
-                  <span className="text-[10px] font-mono text-[--fg-muted]">OUT={gpio?.outputs[ch] ?? '--'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "inline-block w-2.5 h-2.5 rounded-full",
-                    (gpio?.inputs[ch] ?? 0) ? 'bg-emerald-400' : 'bg-zinc-500'
-                  )} />
-                  <span className="text-xs font-mono text-[--fg-primary]">{gpio?.inputs[ch] ?? '--'}</span>
-                </div>
-              </div>
-            ))}
-            <div className="flex justify-end">
-              <button
-                onClick={refreshExtIO}
-                disabled={connState !== 'connected'}
-                className="px-3 py-1 rounded text-[11px] font-medium bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors"
-              >刷新 GPIO</button>
-            </div>
-          </div>
-        </Card>
+        {view === 'gpio' && (
+          <GPIOCard
+            gpio={gpio}
+            connected={connState === 'connected'}
+            ioMsg={ioMsg}
+            onModeChange={handleGPIOModeChange}
+            onOutputChange={handleGPIOOutputChange}
+            onRefresh={refreshExtIO}
+          />
+        )}
 
-        <Card title="红外占位接口" icon={<Settings className="w-4 h-4 text-amber-400" />} className="col-span-12 lg:col-span-5">
-          <div className="space-y-3">
-            <div className="rounded bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300 leading-relaxed">
-              红外接收已接入真实 NEC 解码（DP1 / DI1 / PC5）。发送路径仍保留为寄存器预留，当前未实现真实发射。
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">TX CMD</div>
-                <input
-                  type="number"
-                  value={irTxCmd}
-                  onChange={e => setIrTxCmd(e.target.value)}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-sm font-mono text-[--fg-primary]"
-                />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">TX DATA</div>
-                <input
-                  type="number"
-                  value={irTxData}
-                  onChange={e => setIrTxData(e.target.value)}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-sm font-mono text-[--fg-primary]"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleIRSend}
-                disabled={connState !== 'connected'}
-                className="px-3 py-1 rounded text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 disabled:opacity-40 transition-colors"
-              >写入占位寄存器</button>
-              <button
-                onClick={refreshExtIO}
-                disabled={connState !== 'connected'}
-                className="px-3 py-1 rounded text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors"
-              >刷新红外状态</button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[--bg-input] rounded px-3 py-2">
-                <div className="text-[10px] text-[--fg-muted] uppercase">RX STATUS</div>
-                <div className="text-lg font-mono font-bold text-amber-400">{ir ? IR_STATUS_LABELS[ir.rxStatus] ?? `${ir.rxStatus}` : '--'}</div>
-              </div>
-              <div className="bg-[--bg-input] rounded px-3 py-2">
-                <div className="text-[10px] text-[--fg-muted] uppercase">RX DATA</div>
-                <div className="text-lg font-mono font-bold text-[--fg-primary]">{ir ? ir.rxData : '--'}</div>
-              </div>
-              <div className="bg-[--bg-input] rounded px-3 py-2">
-                <div className="text-[10px] text-[--fg-muted] uppercase">LAST TX CMD</div>
-                <div className="text-sm font-mono text-[--fg-primary]">{ir ? ir.txCmd : '--'}</div>
-              </div>
-              <div className="bg-[--bg-input] rounded px-3 py-2">
-                <div className="text-[10px] text-[--fg-muted] uppercase">LAST TX DATA</div>
-                <div className="text-sm font-mono text-[--fg-primary]">{ir ? ir.txData : '--'}</div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="红外解码参数配置" icon={<Settings className="w-4 h-4 text-cyan-400" />} className="col-span-12 lg:col-span-7">
-          <div className="space-y-3">
-            <div className="rounded bg-cyan-500/10 border border-cyan-500/20 px-3 py-2 text-xs text-cyan-300 leading-relaxed">
-              调整红外解码 timing 参数范围，用于适配不同品牌的遥控器。修改后点击"应用参数"生效。
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码低(下限)</div>
-                <input type="number" value={irParamsEdit.leadLowLo} onChange={e => setIrParamsEdit(p => ({ ...p, leadLowLo: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码低(上限)</div>
-                <input type="number" value={irParamsEdit.leadLowHi} onChange={e => setIrParamsEdit(p => ({ ...p, leadLowHi: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码高(下限)</div>
-                <input type="number" value={irParamsEdit.leadHighLo} onChange={e => setIrParamsEdit(p => ({ ...p, leadHighLo: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">引导码高(上限)</div>
-                <input type="number" value={irParamsEdit.leadHighHi} onChange={e => setIrParamsEdit(p => ({ ...p, leadHighHi: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"0"(下限)</div>
-                <input type="number" value={irParamsEdit.bit0Lo} onChange={e => setIrParamsEdit(p => ({ ...p, bit0Lo: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"0"(上限)</div>
-                <input type="number" value={irParamsEdit.bit0Hi} onChange={e => setIrParamsEdit(p => ({ ...p, bit0Hi: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"1"(下限)</div>
-                <input type="number" value={irParamsEdit.bit1Lo} onChange={e => setIrParamsEdit(p => ({ ...p, bit1Lo: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-              <div>
-                <div className="text-[10px] text-[--fg-muted] uppercase mb-1">数据"1"(上限)</div>
-                <input type="number" value={irParamsEdit.bit1Hi} onChange={e => setIrParamsEdit(p => ({ ...p, bit1Hi: e.target.value }))}
-                  className="w-full bg-[--bg-card] border border-[--border] rounded px-2 py-1 text-xs font-mono" />
-              </div>
-            </div>
-            {irMsg && (
-              <div className={`rounded px-3 py-2 text-xs ${irMsg.type === 'ok' ? 'bg-green-500/10 text-green-400' : irMsg.type === 'err' ? 'bg-red-500/10 text-red-400' : 'bg-sky-500/10 text-sky-400'}`}>
-                {irMsg.text}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <button onClick={handleIRParamsRead} disabled={connState !== 'connected'}
-                className="px-3 py-1 rounded text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors">
-                从下位机读取
-              </button>
-              <button onClick={handleIRParamsApply} disabled={connState !== 'connected'}
-                className="px-3 py-1 rounded text-xs bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-40 transition-colors">
-                应用参数
-              </button>
-              <button onClick={handleIRParamsReset}
-                className="px-3 py-1 rounded text-xs bg-gray-500/20 text-gray-400 hover:bg-gray-500/30 transition-colors">
-                恢复默认
-              </button>
-            </div>
-          </div>
-        </Card>
-          </>
+        {view === 'ir' && (
+          <IRPanel
+            ir={ir}
+            connected={connState === 'connected'}
+            irTxAddr={irTxAddr}
+            setIrTxAddr={setIrTxAddr}
+            irTxAddrHex={irTxAddrHex}
+            setIrTxAddrHex={setIrTxAddrHex}
+            irTxData={irTxData}
+            setIrTxData={setIrTxData}
+            irTxCmdHex={irTxCmdHex}
+            setIrTxCmdHex={setIrTxCmdHex}
+            irTxPresetIndex={irTxPresetIndex}
+            setIrTxPresetIndex={setIrTxPresetIndex}
+            onPresetSelect={handleIRPresetSelect}
+            onSend={handleIRSend}
+            onRefresh={refreshExtIO}
+            onSaveRx={handleIRSaveRx}
+            irParamsEdit={irParamsEdit}
+            setIrParamsEdit={setIrParamsEdit}
+            irMsg={irMsg}
+            onParamsRead={handleIRParamsRead}
+            onParamsApply={handleIRParamsApply}
+            onParamsReset={handleIRParamsReset}
+          />
         )}
         </main>
         )}

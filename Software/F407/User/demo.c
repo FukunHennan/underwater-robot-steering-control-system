@@ -134,10 +134,25 @@ void demo_run(void)
 
             if (atk_ms901m_get_attitude(&att, 5) == ATK_MS901M_EOK)
             {
+                /* Yaw wraps at ±180°. The linear Kalman update treats the
+                 * observation difference (measure - x) as a small linear
+                 * residual, which is invalid across the wrap (a +178°→-178°
+                 * physical 4° step would look like -356°, sending the filter
+                 * sweeping through 0). Unwrap the yaw measurement against the
+                 * current Kalman state before update, then re-normalize the
+                 * output back to [-180, 180]. */
+                float yaw_meas = att.yaw;
+                while (yaw_meas - kf_yaw.x >  180.0f) yaw_meas -= 360.0f;
+                while (yaw_meas - kf_yaw.x < -180.0f) yaw_meas += 360.0f;
+
                 /* Use gyro as prediction model, attitude angle as observation */
                 filtered_roll  = kalman_update(&kf_roll,  att.roll,  filtered_gx, dt);
                 filtered_pitch = kalman_update(&kf_pitch, att.pitch, filtered_gy, dt);
-                filtered_yaw   = kalman_update(&kf_yaw,   att.yaw,   filtered_gz, dt);
+                filtered_yaw   = kalman_update(&kf_yaw,   yaw_meas,  filtered_gz, dt);
+
+                /* Normalize filtered yaw back to [-180, 180] for output. */
+                while (filtered_yaw >  180.0f) filtered_yaw -= 360.0f;
+                while (filtered_yaw < -180.0f) filtered_yaw += 360.0f;
 
                 modbus_set_register_float(REG_ROLL,  filtered_roll);
                 modbus_set_register_float(REG_PITCH, filtered_pitch);

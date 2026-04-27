@@ -26,6 +26,8 @@
 #include "pwm.h"
 #include "calib.h"
 #include "gpio.h"
+#include "kalman.h"
+#include "atk_ms901m.h"
 #include <string.h>
 
 /* Forward declaration for internal helper */
@@ -33,6 +35,7 @@ static void modbus_sync_calib_to_regs(void);
 static void modbus_ir_init(void);
 static void modbus_ir_reset(void);
 static void modbus_ir_on_edge(uint8_t level, uint32_t now_us);
+static void modbus_sync_kalman_to_regs(void);
 
 /* Modbus holding register array */
 static USHORT g_modbus_registers[REG_HOLDING_MAX];
@@ -46,6 +49,14 @@ static volatile uint16_t g_pending_calib_cmd = 0;
 #define IR_RX_GPIO_PORT              GPIOE
 #define IR_RX_GPIO_PIN               GPIO_PIN_4
 #define IR_RX_EXTI_IRQn              EXTI4_IRQn
+
+/* IR transmit (DI1 = PC5) */
+#define IR_TX_GPIO_PORT              GPIOC
+#define IR_TX_GPIO_PIN               GPIO_PIN_5
+#define IR_TX_HIGH()                 HAL_GPIO_WritePin(IR_TX_GPIO_PORT, IR_TX_GPIO_PIN, GPIO_PIN_SET)
+#define IR_TX_LOW()                  HAL_GPIO_WritePin(IR_TX_GPIO_PORT, IR_TX_GPIO_PIN, GPIO_PIN_RESET)
+#define IR_TX_TOGGLE()               HAL_GPIO_TogglePin(IR_TX_GPIO_PORT, IR_TX_GPIO_PIN)
+
 #define IR_STATUS_IDLE               0
 #define IR_STATUS_FRAME              1
 #define IR_STATUS_REPEAT             2
@@ -137,6 +148,86 @@ static void modbus_ir_reset(void)
     g_ir_state = IR_STATE_IDLE;
     g_ir_data = 0;
     g_ir_bit_index = 0;
+}
+
+/* IR transmit: send NEC protocol frame
+ * NEC protocol:
+ *   - Leader: 9ms high, 4.5ms low
+ *   - 8-bit address, 8-bit address inverse
+ *   - 8-bit command, 8-bit command inverse
+ *   - End bit: 560us high
+ *   - '0': 560us high, 560us low
+ *   - '1': 560us high, 1690us low
+ */
+static void ir_send_nec(uint8_t addr, uint8_t cmd)
+{
+    uint8_t i;
+    uint32_t nec_addr_inv = (~addr) & 0xFF;
+    uint8_t nec_cmd_inv = (~cmd) & 0xFF;
+
+    /* Initialize PC5 as output if not already */
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = IR_TX_GPIO_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(IR_TX_GPIO_PORT, &GPIO_InitStruct);
+    IR_TX_LOW();
+
+    /* Leader: 9ms high (38kHz modulated) */
+    for (i = 0; i < 168; i++) {   /* 9ms / 53.57us ≈ 168 cycles */
+        IR_TX_TOGGLE();
+        delay_us(26);              /* 38kHz: 13us high + 13us low ≈ 26us per toggle */
+    }
+
+    /* Leader gap: 4.5ms low */
+    IR_TX_LOW();
+    delay_us(4500);
+
+    /* Send 8-bit address */
+    for (i = 0; i < 8; i++) {
+        IR_TX_HIGH();
+        delay_us(560);
+        IR_TX_LOW();
+        if (addr & 0x01) delay_us(1690);  /* '1': 560us + 1690us = 2250us */
+        else delay_us(560);                 /* '0': 560us + 560us = 1120us */
+        addr >>= 1;
+    }
+
+    /* Send 8-bit address inverse */
+    for (i = 0; i < 8; i++) {
+        IR_TX_HIGH();
+        delay_us(560);
+        IR_TX_LOW();
+        if (nec_addr_inv & 0x01) delay_us(1690);
+        else delay_us(560);
+        nec_addr_inv >>= 1;
+    }
+
+    /* Send 8-bit command */
+    for (i = 0; i < 8; i++) {
+        IR_TX_HIGH();
+        delay_us(560);
+        IR_TX_LOW();
+        if (cmd & 0x01) delay_us(1690);
+        else delay_us(560);
+        cmd >>= 1;
+    }
+
+    /* Send 8-bit command inverse */
+    for (i = 0; i < 8; i++) {
+        IR_TX_HIGH();
+        delay_us(560);
+        IR_TX_LOW();
+        if (nec_cmd_inv & 0x01) delay_us(1690);
+        else delay_us(560);
+        nec_cmd_inv >>= 1;
+    }
+
+    /* End bit */
+    IR_TX_HIGH();
+    delay_us(560);
+    IR_TX_LOW();
 }
 
 static void modbus_ir_on_edge(uint8_t level, uint32_t now_us)
@@ -245,13 +336,26 @@ static void modbus_ir_init(void)
     GPIO_InitTypeDef gpio_init_struct;
 
     __HAL_RCC_GPIOE_CLK_ENABLE();
+    __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_SYSCFG_CLK_ENABLE();
 
+    /* IR RX pin (PE4) - interrupt for receive.
+     * Use internal pull-up: most NEC IR receiver modules idle HIGH and
+     * actively pull LOW; without a pull-up a weak/open-drain output can
+     * fail to produce clean digital edges into EXTI. */
     gpio_init_struct.Pin = IR_RX_GPIO_PIN;
     gpio_init_struct.Mode = GPIO_MODE_IT_RISING_FALLING;
-    gpio_init_struct.Pull = GPIO_NOPULL;
+    gpio_init_struct.Pull = GPIO_PULLUP;
     gpio_init_struct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(IR_RX_GPIO_PORT, &gpio_init_struct);
+
+    /* IR TX pin (PC5) - output for transmit */
+    gpio_init_struct.Pin = IR_TX_GPIO_PIN;
+    gpio_init_struct.Mode = GPIO_MODE_OUTPUT_PP;
+    gpio_init_struct.Pull = GPIO_NOPULL;
+    gpio_init_struct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(IR_TX_GPIO_PORT, &gpio_init_struct);
+    IR_TX_LOW();
 
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     DWT->CYCCNT = 0;
@@ -288,6 +392,7 @@ static BOOL is_reg_writable(USHORT addr)
     if (addr >= REG_GPIO_MODE0 && addr <= REG_GPIO_OUT3) return TRUE;
     if (addr >= REG_IR_TX_CMD && addr <= REG_IR_TX_DATA) return TRUE;
     if (addr >= REG_IR_LEAD_LOW_LO && addr <= REG_IR_BIT1_HI) return TRUE;
+    if (addr >= REG_KALMAN_Q_ROLL && addr <= REG_KALMAN_CMD) return TRUE;
     return FALSE;
 }
 
@@ -361,11 +466,43 @@ static void apply_register(USHORT addr)
     }
     else if (addr == REG_IR_TX_CMD)
     {
+        /* Write to REG_IR_TX_CMD triggers IR NEC transmission
+         * Address: From REG_IR_TX_CMD register
+         * Command: From REG_IR_TX_DATA register
+         */
+        uint8_t ir_addr = (uint8_t)(g_modbus_registers[REG_IR_TX_CMD] & 0xFF);
+        uint8_t ir_cmd = (uint8_t)(g_modbus_registers[REG_IR_TX_DATA] & 0xFF);
+        ir_send_nec(ir_addr, ir_cmd);
         g_modbus_registers[REG_IR_TX_CMD] = 0;
     }
     else if (addr == REG_IR_TX_DATA)
     {
         /* TX path remains reserved; register is reused as pulse-width debug mirror. */
+    }
+    else if (addr >= REG_KALMAN_Q_ROLL && addr <= REG_KALMAN_R_GYRO_Z)
+    {
+        /* Kalman Q/R parameter write: sync kalman instance on high-word (even addr) write */
+        if ((addr & 1) == 0)
+        {
+            uint8_t ch = (addr - REG_KALMAN_Q_ROLL) / 2;
+            float q = modbus_get_register_float(REG_KALMAN_Q_ROLL + ch * 2);
+            float r = modbus_get_register_float(REG_KALMAN_R_ROLL + ch * 2);
+            if (ch < KALMAN_CH_COUNT)
+            {
+                kalman_set_params(ch, q, r);
+            }
+        }
+    }
+    else if (addr == REG_KALMAN_CMD)
+    {
+        uint16_t cmd = g_modbus_registers[REG_KALMAN_CMD];
+        if (cmd == 1)
+        {
+            kalman_reset_all();
+            modbus_sync_kalman_to_regs();
+            printf("[KALMAN] Reset all filters\r\n");
+        }
+        g_modbus_registers[REG_KALMAN_CMD] = 0;
     }
 }
 
@@ -419,6 +556,20 @@ static void modbus_sync_calib_to_regs(void)
     }
     g_modbus_registers[REG_CAL_CMD]    = 0;
     g_modbus_registers[REG_CAL_STATUS] = CALIB_STATUS_IDLE;
+}
+
+/**
+ * @brief  Copy g_kalman RAM values into Modbus register mirror
+ */
+static void modbus_sync_kalman_to_regs(void)
+{
+    uint8_t ch;
+    for (ch = 0; ch < KALMAN_CH_COUNT; ch++)
+    {
+        modbus_set_register_float(REG_KALMAN_Q_ROLL + ch * 4,     g_kalman[ch].q);
+        modbus_set_register_float(REG_KALMAN_R_ROLL + ch * 4,     g_kalman[ch].r);
+    }
+    g_modbus_registers[REG_KALMAN_CMD] = 0;
 }
 
 /* ----------------------- Public functions ---------------------------------*/
@@ -483,6 +634,9 @@ void modbus_init(void)
     g_modbus_registers[REG_IR_BIT1_HI]      = 1900U;
     modbus_ir_init();
 
+    /* Initialize Kalman filter registers with default Q/R values */
+    modbus_sync_kalman_to_regs();
+
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
     printf("[MODBUS] eMBInit result: %d\r\n", eStatus);
@@ -518,6 +672,20 @@ void modbus_update_sensors(void)
     g_modbus_registers[REG_ADC_RAW2] = adc_get_channel_value(ADC_CH_ANALOG3);
     g_modbus_registers[REG_ADC_RAW3] = adc_get_channel_value(ADC_CH_ANALOG4);
     g_modbus_registers[REG_ADC_RAW4] = adc_get_channel_value(ADC_CH_VOLTAGE);
+
+    /* Magnetometer data */
+    atk_ms901m_magnetometer_data_t mag;
+    if (atk_ms901m_get_magnetometer(&mag, 100) == ATK_MS901M_EOK)
+    {
+        /* Convert raw magnetometer data to float in uT */
+        float mag_x = (float)mag.x * 0.1f;  // Example conversion factor, adjust based on sensor specs
+        float mag_y = (float)mag.y * 0.1f;
+        float mag_z = (float)mag.z * 0.1f;
+        modbus_set_register_float(REG_MAG_X, mag_x);
+        modbus_set_register_float(REG_MAG_Y, mag_y);
+        modbus_set_register_float(REG_MAG_Z, mag_z);
+        modbus_set_register_float(REG_MAG_TEMP, mag.temperature);
+    }
 
     /* GPIO snapshot */
     for (i = 0; i < 4; i++)

@@ -87,20 +87,30 @@
  *  0x004C BARO_TEMP_H    R    Temperature float high (IEEE 754, deg C)
  *  0x004D BARO_TEMP_L    R    Temperature float low
  *
- *  ADC Calibration (0x0050 - 0x0065)  y = gain * x + offset
+ *  Magnetometer / MS901M (0x004E - 0x0055) IEEE 754 float, 2 regs each
+ *  0x004E MAG_X_H         R    Magnetic field X (uT)  float = [H]<<16 | [L]
+ *  0x004F MAG_X_L         R
+ *  0x0050 MAG_Y_H         R    Magnetic field Y (uT)
+ *  0x0051 MAG_Y_L         R
+ *  0x0052 MAG_Z_H         R    Magnetic field Z (uT)
+ *  0x0053 MAG_Z_L         R
+ *  0x0054 MAG_TEMP_H      R    Magnetometer temperature (deg C)
+ *  0x0055 MAG_TEMP_L      R
+ *
+ *  ADC Calibration (0x0056 - 0x006B)  y = gain * x + offset
  *    All gain/offset are IEEE 754 float (2 regs, big-endian word order)
- *  0x0050 CAL_VOLT_GAIN   R/W  VOLTAGE gain   (default 1.0)
- *  0x0052 CAL_VOLT_OFF    R/W  VOLTAGE offset (default 0.0)
- *  0x0054 CAL_AN1_GAIN    R/W  ANALOG1 gain
- *  0x0056 CAL_AN1_OFF     R/W  ANALOG1 offset
- *  0x0058 CAL_AN2_GAIN    R/W
- *  0x005A CAL_AN2_OFF     R/W
- *  0x005C CAL_AN3_GAIN    R/W
- *  0x005E CAL_AN3_OFF     R/W
- *  0x0060 CAL_AN4_GAIN    R/W
- *  0x0062 CAL_AN4_OFF     R/W
- *  0x0064 CAL_CMD         R/W  Write 0x5A5A = save to Flash, 0xA5A5 = reset
- *  0x0065 CAL_STATUS      R    0=idle, 1=saved, 0xFF=error
+ *  0x0056 CAL_VOLT_GAIN   R/W  VOLTAGE gain   (default 1.0)
+ *  0x0058 CAL_VOLT_OFF    R/W  VOLTAGE offset (default 0.0)
+ *  0x005A CAL_AN1_GAIN    R/W  ANALOG1 gain
+ *  0x005C CAL_AN1_OFF     R/W  ANALOG1 offset
+ *  0x005E CAL_AN2_GAIN    R/W
+ *  0x0060 CAL_AN2_OFF     R/W
+ *  0x0062 CAL_AN3_GAIN    R/W
+ *  0x0064 CAL_AN3_OFF     R/W
+ *  0x0066 CAL_AN4_GAIN    R/W
+ *  0x0068 CAL_AN4_OFF     R/W
+ *  0x006A CAL_CMD         R/W  Write 0x5A5A = save to Flash, 0xA5A5 = reset
+ *  0x006B CAL_STATUS      R    0=idle, 1=saved, 0xFF=error
  * ============================================================ */
 
 /* System registers: 0x0000 - 0x0005 */
@@ -160,52 +170,73 @@
 #define REG_ALTITUDE_L        75     /* 0x004B Altitude low              */
 #define REG_BARO_TEMP         76     /* 0x004C-0x004D Temperature (float, deg C) */
 
-/* ADC Calibration registers: 0x0050 - 0x0065 (float = 2 regs each) */
-#define REG_CAL_VOLT_GAIN     80     /* 0x0050-0x0051 */
-#define REG_CAL_VOLT_OFF      82     /* 0x0052-0x0053 */
-#define REG_CAL_AN1_GAIN      84     /* 0x0054-0x0055 */
-#define REG_CAL_AN1_OFF       86     /* 0x0056-0x0057 */
-#define REG_CAL_AN2_GAIN      88     /* 0x0058-0x0059 */
-#define REG_CAL_AN2_OFF       90     /* 0x005A-0x005B */
-#define REG_CAL_AN3_GAIN      92     /* 0x005C-0x005D */
-#define REG_CAL_AN3_OFF       94     /* 0x005E-0x005F */
-#define REG_CAL_AN4_GAIN      96     /* 0x0060-0x0061 */
-#define REG_CAL_AN4_OFF       98     /* 0x0062-0x0063 */
-#define REG_CAL_CMD           100    /* 0x0064 */
-#define REG_CAL_STATUS        101    /* 0x0065 */
+/* Magnetometer registers: 0x004E - 0x0055 */
+#define REG_MAG_X             78     /* 0x004E-0x004F Magnetic field X (float, uT) */
+#define REG_MAG_Y             80     /* 0x0050-0x0051 Magnetic field Y (float, uT) */
+#define REG_MAG_Z             82     /* 0x0052-0x0053 Magnetic field Z (float, uT) */
+#define REG_MAG_TEMP          84     /* 0x0054-0x0055 Magnetometer temperature (float, deg C) */
 
-/* GPIO registers: 0x0066 - 0x0071 */
-#define REG_GPIO_MODE0         102
-#define REG_GPIO_MODE1         103
-#define REG_GPIO_MODE2         104
-#define REG_GPIO_MODE3         105
-#define REG_GPIO_OUT0          106
-#define REG_GPIO_OUT1          107
-#define REG_GPIO_OUT2          108
-#define REG_GPIO_OUT3          109
-#define REG_GPIO_IN0           110
-#define REG_GPIO_IN1           111
-#define REG_GPIO_IN2           112
-#define REG_GPIO_IN3           113
+/* ADC Calibration registers: 0x0056 - 0x006B (float = 2 regs each) */
+#define REG_CAL_VOLT_GAIN     86     /* 0x0056-0x0057 */
+#define REG_CAL_VOLT_OFF      88     /* 0x0058-0x0059 */
+#define REG_CAL_AN1_GAIN      90     /* 0x005A-0x005B */
+#define REG_CAL_AN1_OFF       92     /* 0x005C-0x005D */
+#define REG_CAL_AN2_GAIN      94     /* 0x005E-0x005F */
+#define REG_CAL_AN2_OFF       96     /* 0x0060-0x0061 */
+#define REG_CAL_AN3_GAIN      98     /* 0x0062-0x0063 */
+#define REG_CAL_AN3_OFF       100    /* 0x0064-0x0065 */
+#define REG_CAL_AN4_GAIN      102    /* 0x0066-0x0067 */
+#define REG_CAL_AN4_OFF       104    /* 0x0068-0x0069 */
+#define REG_CAL_CMD           106    /* 0x006A */
+#define REG_CAL_STATUS        107    /* 0x006B */
 
-/* IR placeholder registers: 0x0072 - 0x0075 */
-#define REG_IR_TX_CMD          114
-#define REG_IR_TX_DATA         115
-#define REG_IR_RX_STATUS       116
-#define REG_IR_RX_DATA         117
+/* GPIO registers: 0x006C - 0x0071 */
+#define REG_GPIO_MODE0         108
+#define REG_GPIO_MODE1         109
+#define REG_GPIO_MODE2         110
+#define REG_GPIO_MODE3         111
+#define REG_GPIO_OUT0          112
+#define REG_GPIO_OUT1          113
+#define REG_GPIO_OUT2          114
+#define REG_GPIO_OUT3          115
+#define REG_GPIO_IN0           116
+#define REG_GPIO_IN1           117
+#define REG_GPIO_IN2           118
+#define REG_GPIO_IN3           119
 
-/* IR timing parameters: 0x0076 - 0x007D (adjustable via Modbus) */
-#define REG_IR_LEAD_LOW_LO     118    /* Lead code low time min (us) */
-#define REG_IR_LEAD_LOW_HI     119    /* Lead code low time max (us) */
-#define REG_IR_LEAD_HIGH_LO    120    /* Lead code high time min (us) */
-#define REG_IR_LEAD_HIGH_HI    121    /* Lead code high time max (us) */
-#define REG_IR_BIT0_LO         122    /* Bit 0 time min (us) */
-#define REG_IR_BIT0_HI         123    /* Bit 0 time max (us) */
-#define REG_IR_BIT1_LO         124    /* Bit 1 time min (us) */
-#define REG_IR_BIT1_HI         125    /* Bit 1 time max (us) */
+/* IR registers: 0x0078 - 0x007B (TX_CMD/TX_DATA reused as edge counter / last pulse width while debugging RX) */
+#define REG_IR_TX_CMD          120
+#define REG_IR_TX_DATA         121
+#define REG_IR_RX_STATUS       122
+#define REG_IR_RX_DATA         123
+
+/* IR timing parameters: 0x007C - 0x0083 (adjustable via Modbus) */
+#define REG_IR_LEAD_LOW_LO     124    /* Lead code low time min (us) */
+#define REG_IR_LEAD_LOW_HI     125    /* Lead code low time max (us) */
+#define REG_IR_LEAD_HIGH_LO    126    /* Lead code high time min (us) */
+#define REG_IR_LEAD_HIGH_HI    127    /* Lead code high time max (us) */
+#define REG_IR_BIT0_LO         128    /* Bit 0 time min (us) */
+#define REG_IR_BIT0_HI         129    /* Bit 0 time max (us) */
+#define REG_IR_BIT1_LO         130    /* Bit 1 time min (us) */
+#define REG_IR_BIT1_HI         131    /* Bit 1 time max (us) */
+
+/* Kalman filter parameters: 0x0086 - 0x009E (float = 2 regs each, big-endian word order) */
+#define REG_KALMAN_Q_ROLL      134    /* 0x0086-0x0087 */
+#define REG_KALMAN_R_ROLL      136    /* 0x0088-0x0089 */
+#define REG_KALMAN_Q_PITCH     138    /* 0x008A-0x008B */
+#define REG_KALMAN_R_PITCH     140    /* 0x008C-0x008D */
+#define REG_KALMAN_Q_YAW       142    /* 0x008E-0x008F */
+#define REG_KALMAN_R_YAW       144    /* 0x0090-0x0091 */
+#define REG_KALMAN_Q_GYRO_X    146    /* 0x0092-0x0093 */
+#define REG_KALMAN_R_GYRO_X    148    /* 0x0094-0x0095 */
+#define REG_KALMAN_Q_GYRO_Y    150    /* 0x0096-0x0097 */
+#define REG_KALMAN_R_GYRO_Y    152    /* 0x0098-0x0099 */
+#define REG_KALMAN_Q_GYRO_Z    154    /* 0x009A-0x009B */
+#define REG_KALMAN_R_GYRO_Z    156    /* 0x009C-0x009D */
+#define REG_KALMAN_CMD         158    /* 0x009E: Write 1 = reset filter */
 
 /* Total register count */
-#define REG_HOLDING_MAX       126
+#define REG_HOLDING_MAX       159
 
 void modbus_init(void);
 void modbus_process(void);

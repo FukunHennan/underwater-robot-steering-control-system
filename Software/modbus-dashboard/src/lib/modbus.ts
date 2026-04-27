@@ -178,47 +178,68 @@ export const REG = {
   ALTITUDE_L: 0x004b,
   BARO_TEMP: 0x004c,
 
-  /* ADC Calibration (0x0050 - 0x0065) — float = 2 regs each, big-endian word order */
-  CAL_VOLT_GAIN: 0x0050,
-  CAL_VOLT_OFF:  0x0052,
-  CAL_AN1_GAIN:  0x0054,
-  CAL_AN1_OFF:   0x0056,
-  CAL_AN2_GAIN:  0x0058,
-  CAL_AN2_OFF:   0x005a,
-  CAL_AN3_GAIN:  0x005c,
-  CAL_AN3_OFF:   0x005e,
-  CAL_AN4_GAIN:  0x0060,
-  CAL_AN4_OFF:   0x0062,
-  CAL_CMD:       0x0064,
-  CAL_STATUS:    0x0065,
+  /* Magnetometer (0x004E - 0x0055) — float = 2 regs each, big-endian word order */
+  MAG_X: 0x004e,
+  MAG_Y: 0x0050,
+  MAG_Z: 0x0052,
+  MAG_TEMP: 0x0054,
 
-  GPIO_MODE0:    0x0066,
-  GPIO_MODE1:    0x0067,
-  GPIO_MODE2:    0x0068,
-  GPIO_MODE3:    0x0069,
-  GPIO_OUT0:     0x006a,
-  GPIO_OUT1:     0x006b,
-  GPIO_OUT2:     0x006c,
-  GPIO_OUT3:     0x006d,
-  GPIO_IN0:      0x006e,
-  GPIO_IN1:      0x006f,
-  GPIO_IN2:      0x0070,
-  GPIO_IN3:      0x0071,
+  /* ADC Calibration (0x0056 - 0x006B) — float = 2 regs each, big-endian word order */
+  CAL_VOLT_GAIN: 0x0056,
+  CAL_VOLT_OFF:  0x0058,
+  CAL_AN1_GAIN:  0x005a,
+  CAL_AN1_OFF:   0x005c,
+  CAL_AN2_GAIN:  0x005e,
+  CAL_AN2_OFF:   0x0060,
+  CAL_AN3_GAIN:  0x0062,
+  CAL_AN3_OFF:   0x0064,
+  CAL_AN4_GAIN:  0x0066,
+  CAL_AN4_OFF:   0x0068,
+  CAL_CMD:       0x006a,
+  CAL_STATUS:    0x006b,
 
-  IR_TX_CMD:     0x0072,
-  IR_TX_DATA:    0x0073,
-  IR_RX_STATUS:  0x0074,
-  IR_RX_DATA:    0x0075,
+  GPIO_MODE0:    0x006c,
+  GPIO_MODE1:    0x006d,
+  GPIO_MODE2:    0x006e,
+  GPIO_MODE3:    0x006f,
+  GPIO_OUT0:     0x0070,
+  GPIO_OUT1:     0x0071,
+  GPIO_OUT2:     0x0072,
+  GPIO_OUT3:     0x0073,
+  GPIO_IN0:      0x0074,
+  GPIO_IN1:      0x0075,
+  GPIO_IN2:      0x0076,
+  GPIO_IN3:      0x0077,
 
-  /* IR timing parameters (0x0076-0x007D) */
-  IR_LEAD_LOW_LO:  0x0076,
-  IR_LEAD_LOW_HI:  0x0077,
-  IR_LEAD_HIGH_LO: 0x0078,
-  IR_LEAD_HIGH_HI: 0x0079,
-  IR_BIT0_LO:      0x007A,
-  IR_BIT0_HI:      0x007B,
-  IR_BIT1_LO:      0x007C,
-  IR_BIT1_HI:      0x007D,
+  IR_TX_CMD:     0x0078,
+  IR_TX_DATA:    0x0079,
+  IR_RX_STATUS:  0x007a,
+  IR_RX_DATA:    0x007b,
+
+  /* IR timing parameters (0x007C-0x0083) */
+  IR_LEAD_LOW_LO:  0x007c,
+  IR_LEAD_LOW_HI:  0x007d,
+  IR_LEAD_HIGH_LO: 0x007e,
+  IR_LEAD_HIGH_HI: 0x007f,
+  IR_BIT0_LO:      0x0080,
+  IR_BIT0_HI:      0x0081,
+  IR_BIT1_LO:      0x0082,
+  IR_BIT1_HI:      0x0083,
+
+  /* Kalman filter parameters (0x0086-0x009E) — float = 2 regs each, big-endian word order; aligned with firmware REG_KALMAN_* */
+  KALMAN_Q_ROLL:    0x0086,
+  KALMAN_R_ROLL:    0x0088,
+  KALMAN_Q_PITCH:   0x008a,
+  KALMAN_R_PITCH:   0x008c,
+  KALMAN_Q_YAW:     0x008e,
+  KALMAN_R_YAW:     0x0090,
+  KALMAN_Q_GYRO_X:  0x0092,
+  KALMAN_R_GYRO_X:  0x0094,
+  KALMAN_Q_GYRO_Y:  0x0096,
+  KALMAN_R_GYRO_Y:  0x0098,
+  KALMAN_Q_GYRO_Z:  0x009a,
+  KALMAN_R_GYRO_Z:  0x009c,
+  KALMAN_CMD:       0x009e,
 } as const;
 
 /** Calibration channel indices (match firmware CALIB_CH_*) */
@@ -686,6 +707,20 @@ export class ModbusClient {
   }
 
   /**
+   * Read magnetometer data (0x004E-0x0055)
+   * @returns { magX, magY, magZ, temperature } — magnetic field in uT, temperature in °C
+   */
+  async readMagnetometer() {
+    const regs = await this.readHoldingRegisters(REG.MAG_X, 8);
+    return {
+      magX: regsToFloat(regs[0], regs[1]),
+      magY: regsToFloat(regs[2], regs[3]),
+      magZ: regsToFloat(regs[4], regs[5]),
+      temperature: regsToFloat(regs[6], regs[7]),
+    };
+  }
+
+  /**
    * Read all calibration parameters (0x0050-0x0065)
    * @returns { gains, offsets, status } — 5 channels in order: VOLTAGE, ANALOG1..4
    */
@@ -706,7 +741,7 @@ export class ModbusClient {
     };
   }
 
-  /** Read GPIO block (0x0066-0x0071) */
+  /** Read GPIO block (0x006C-0x0077) */
   async readGPIO(): Promise<GPIOData> {
     const regs = await this.readHoldingRegisters(REG.GPIO_MODE0, 12);
     return {
@@ -728,7 +763,7 @@ export class ModbusClient {
     await this.writeSingleRegister(REG.GPIO_OUT0 + ch, value ? 1 : 0);
   }
 
-  /** Read IR placeholder block (0x0072-0x0075) */
+  /** Read IR block (0x0078-0x007B) — TX_CMD/TX_DATA reused as edge counter / last pulse width while debugging RX */
   async readIR(): Promise<IRData> {
     const regs = await this.readHoldingRegisters(REG.IR_TX_CMD, 4);
     return {
@@ -739,9 +774,16 @@ export class ModbusClient {
     };
   }
 
-  /** Write IR placeholder command/data */
-  async writeIRTx(cmd: number, data: number): Promise<void> {
-    await this.writeMultipleRegisters(REG.IR_TX_CMD, [cmd & 0xFFFF, data & 0xFFFF]);
+  /** Write IR command/data to trigger NEC transmission
+   *  - Write address to REG_IR_TX_CMD (114) first
+   *  - Write command to REG_IR_TX_DATA (115)
+   *  - Writing to TX_CMD triggers transmission
+   */
+  async writeIRTx(addr: number, cmd: number): Promise<void> {
+    /* First write address to TX_CMD register */
+    await this.writeSingleRegister(REG.IR_TX_CMD, addr & 0xFFFF);
+    /* Then write command to TX_DATA register */
+    await this.writeSingleRegister(REG.IR_TX_DATA, cmd & 0xFFFF);
   }
 
   /** Read IR timing parameters (0x0076-0x007D) */
@@ -808,5 +850,57 @@ export class ModbusClient {
   /** Reset all calibration channels to default (gain=1.0, offset=0.0). RAM only, not saved to Flash. */
   async resetCalibToDefault(): Promise<void> {
     await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_RESET);
+  }
+
+  /** Read all Kalman filter parameters (0x007E-0x0089) */
+  async readKalmanParams(): Promise<{
+    qRoll: number; rRoll: number;
+    qPitch: number; rPitch: number;
+    qYaw: number; rYaw: number;
+    qGyroX: number; rGyroX: number;
+    qGyroY: number; rGyroY: number;
+    qGyroZ: number; rGyroZ: number;
+  }> {
+    const regs = await this.readHoldingRegisters(REG.KALMAN_Q_ROLL, 12);
+    return {
+      qRoll: regsToFloat(regs[0], regs[1]), rRoll: regsToFloat(regs[2], regs[3]),
+      qPitch: regsToFloat(regs[4], regs[5]), rPitch: regsToFloat(regs[6], regs[7]),
+      qYaw: regsToFloat(regs[8], regs[9]), rYaw: regsToFloat(regs[10], regs[11]),
+      qGyroX: regsToFloat(regs[12], regs[13]), rGyroX: regsToFloat(regs[14], regs[15]),
+      qGyroY: regsToFloat(regs[16], regs[17]), rGyroY: regsToFloat(regs[18], regs[19]),
+      qGyroZ: regsToFloat(regs[20], regs[21]), rGyroZ: regsToFloat(regs[22], regs[23]),
+    };
+  }
+
+  /** Write a single Kalman Q or R parameter */
+  async writeKalmanParam(addr: number, value: number): Promise<void> {
+    const [hi, lo] = floatToRegs(value);
+    await this.writeMultipleRegisters(addr, [hi, lo]);
+  }
+
+  /** Write all Kalman filter parameters in one FC16 transaction */
+  async writeKalmanParams(params: {
+    qRoll: number; rRoll: number;
+    qPitch: number; rPitch: number;
+    qYaw: number; rYaw: number;
+    qGyroX: number; rGyroX: number;
+    qGyroY: number; rGyroY: number;
+    qGyroZ: number; rGyroZ: number;
+  }): Promise<void> {
+    const toRegs = (v: number) => { const [hi, lo] = floatToRegs(v); return [hi, lo]; };
+    const allRegs = [
+      ...toRegs(params.qRoll), ...toRegs(params.rRoll),
+      ...toRegs(params.qPitch), ...toRegs(params.rPitch),
+      ...toRegs(params.qYaw), ...toRegs(params.rYaw),
+      ...toRegs(params.qGyroX), ...toRegs(params.rGyroX),
+      ...toRegs(params.qGyroY), ...toRegs(params.rGyroY),
+      ...toRegs(params.qGyroZ), ...toRegs(params.rGyroZ),
+    ];
+    await this.writeMultipleRegisters(REG.KALMAN_Q_ROLL, allRegs);
+  }
+
+  /** Send Kalman filter reset command */
+  async resetKalmanFilter(): Promise<void> {
+    await this.writeSingleRegister(REG.KALMAN_CMD, 1);
   }
 }

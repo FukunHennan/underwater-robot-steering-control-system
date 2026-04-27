@@ -214,6 +214,35 @@
 
 ---
 
+## 卡尔曼滤波参数 (0x007E - 0x008D)
+
+> **注意**: 这些寄存器在 Web Dashboard 的**姿态页面**中调整，用于实时控制滤波效果。
+
+| 地址 | 名称 | 类型 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| 0x007E | KALMAN_Q_ROLL | RW | 0.001 | Roll 过程噪声 (float) |
+| 0x007F | KALMAN_R_ROLL | RW | 0.1 | Roll 测量噪声 (float) |
+| 0x0080 | KALMAN_Q_PITCH | RW | 0.001 | Pitch 过程噪声 (float) |
+| 0x0081 | KALMAN_R_PITCH | RW | 0.1 | Pitch 测量噪声 (float) |
+| 0x0082 | KALMAN_Q_YAW | RW | 0.001 | Yaw 过程噪声 (float) |
+| 0x0083 | KALMAN_R_YAW | RW | 0.1 | Yaw 测量噪声 (float) |
+| 0x0084 | KALMAN_Q_GYRO_X | RW | 0.001 | GyroX 过程噪声 (float) |
+| 0x0085 | KALMAN_R_GYRO_X | RW | 0.1 | GyroX 测量噪声 (float) |
+| 0x0086 | KALMAN_Q_GYRO_Y | RW | 0.001 | GyroY 过程噪声 (float) |
+| 0x0087 | KALMAN_R_GYRO_Y | RW | 0.1 | GyroY 测量噪声 (float) |
+| 0x0088 | KALMAN_Q_GYRO_Z | RW | 0.001 | GyroZ 过程噪声 (float) |
+| 0x0089 | KALMAN_R_GYRO_Z | RW | 0.1 | GyroZ 测量噪声 (float) |
+| 0x008A | KALMAN_CMD | WO | 0 | 滤波命令 (0=无, 1=复位) |
+
+**数据格式**: IEEE 754 单精度浮点，大端字序 (AB CD)
+
+**上位机调整方式**:
+- 姿态页面提供 Q/R 滑块，可实时调整滤波效果
+- 增大 Q → 响应变快，平滑度降低
+- 增大 R → 响应变慢，平滑度提高
+
+---
+
 ## Modbus 功能码
 
 | 功能码 | 名称 | 支持 |
