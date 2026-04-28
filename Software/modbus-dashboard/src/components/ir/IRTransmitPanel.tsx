@@ -1,7 +1,6 @@
 import { Zap } from 'lucide-react';
 import { Card } from '../common/Card';
-import { IR_PRESETS, IR_STATUS_LABELS } from '../../lib/presets';
-import type { IRData } from '../../lib/modbus';
+import { IR_PRESETS } from '../../lib/presets';
 
 /**
  * NEC infrared transmit + live-RX status card.
@@ -10,7 +9,6 @@ import type { IRData } from '../../lib/modbus';
  * in the parent. Address & command are entered as decimal + hex in parallel.
  */
 export function IRTransmitPanel(props: {
-  ir: IRData | null;
   connected: boolean;
   irTxAddr: string;
   setIrTxAddr: (v: string) => void;
@@ -25,14 +23,13 @@ export function IRTransmitPanel(props: {
   onPresetSelect: (i: number) => void;
   onSend: () => void;
   onRefresh: () => void;
-  onSaveRx: () => void;
 }) {
   const {
-    ir, connected,
+    connected,
     irTxAddr, setIrTxAddr, irTxAddrHex, setIrTxAddrHex,
     irTxData, setIrTxData, irTxCmdHex, setIrTxCmdHex,
     irTxPresetIndex,
-    setIrTxPresetIndex, onPresetSelect, onSend, onRefresh, onSaveRx,
+    setIrTxPresetIndex, onPresetSelect, onSend, onRefresh,
   } = props;
 
   return (
@@ -141,33 +138,6 @@ export function IRTransmitPanel(props: {
             className="px-3 py-1.5 rounded text-xs bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 disabled:opacity-40 transition-colors"
           >
             刷新状态
-          </button>
-        </div>
-
-        {/* RX Status Display (kept here for at-a-glance feedback after a send) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[--bg-input] rounded px-3 py-2">
-            <div className="text-[10px] text-[--fg-muted] uppercase">RX 状态</div>
-            <div className="text-lg font-mono font-bold text-amber-400">
-              {ir ? IR_STATUS_LABELS[ir.rxStatus] ?? `${ir.rxStatus}` : '--'}
-            </div>
-          </div>
-          <div className="bg-[--bg-input] rounded px-3 py-2">
-            <div className="text-[10px] text-[--fg-muted] uppercase">RX 数据</div>
-            <div className="text-lg font-mono font-bold text-[--fg-primary]">
-              {ir ? ir.rxData : '--'}
-            </div>
-          </div>
-        </div>
-
-        {/* Save IR RX Data */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSaveRx}
-            disabled={!connected || !ir}
-            className="px-4 py-1.5 rounded text-xs bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 transition-colors font-medium"
-          >
-            保存红外接收数据
           </button>
         </div>
       </div>

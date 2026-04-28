@@ -1,29 +1,29 @@
-# 检查端口5173是否被占用
-$port = 5173
+# Check whether port 4173 is occupied
+$port = 4173
 $processes = netstat -ano | Select-String ":$port"
 
 if ($processes) {
-    Write-Host "端口 $port 被占用，正在查找并停止占用进程..."
+    Write-Host "Port $port is occupied. Finding and stopping the process..."
     
-    # 提取进程ID
+    # Extract process ID
     foreach ($process in $processes) {
         $parts = $process -split '\s+'
-        $pid = $parts[-1]
+        $processId = $parts[-1]
         
         try {
-            # 获取进程信息
-            $proc = Get-Process -Id $pid -ErrorAction Stop
-            Write-Host "找到占用进程: $($proc.ProcessName) (PID: $pid)"
+            # Get process information
+            $proc = Get-Process -Id $processId -ErrorAction Stop
+            Write-Host "Found process: $($proc.ProcessName) (PID: $processId)"
             
-            # 停止进程
-            Stop-Process -Id $pid -Force -ErrorAction Stop
-            Write-Host "已成功停止进程 $($proc.ProcessName) (PID: $pid)"
+            # Stop process
+            Stop-Process -Id $processId -Force -ErrorAction Stop
+            Write-Host "Stopped process $($proc.ProcessName) (PID: $processId)"
         } catch {
-            Write-Host "无法停止进程 $pid: $($_.Exception.Message)"
+            Write-Host "Failed to stop process ${processId}: $($_.Exception.Message)"
         }
     }
 } else {
-    Write-Host "端口 $port 未被占用，可以正常启动服务"
+    Write-Host "Port $port is available"
 }
 
-Write-Host "端口检查完成，准备启动开发服务器..."
+Write-Host "Port check completed. Starting dev server..."

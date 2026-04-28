@@ -758,28 +758,30 @@ export default function App() {
     if (connState !== 'connected') return
     try {
       setError('')
-      const sys = await client.readSystem()
-      setSystem(sys)
-      const att = await client.readAttitude()
-      setAttitude(att)
-      const pwmData = await client.readPWM()
-      setPwm(pwmData)
-      const freqData = await client.readPWMFreq()
-      setPwmFreq(freqData)
-      const adcData = await client.readADC()
-      setAdc(adcData)
-      const baroData = await client.readBarometer()
-      setBaro(baroData)
-      const magData = await client.readMagnetometer()
-      setMag(magData)
-      const gpioData = await client.readGPIO()
-      setGpio(gpioData)
-      const irData = await client.readIR()
-      setIr(irData)
+      const sys = await client.readSystem().catch(() => null)
+      if (sys) setSystem(sys)
+      const att = await client.readAttitude().catch(() => null)
+      if (att) setAttitude(att)
+      const pwmData = await client.readPWM().catch(() => null)
+      if (pwmData) setPwm(pwmData)
+      const freqData = await client.readPWMFreq().catch(() => null)
+      if (freqData) setPwmFreq(freqData)
+      const adcData = await client.readADC().catch(() => null)
+      if (adcData) setAdc(adcData)
+      const baroData = await client.readBarometer().catch(() => null)
+      if (baroData) setBaro(baroData)
+      const magData = await client.readMagnetometer().catch(() => null)
+      if (magData) setMag(magData)
+      const gpioData = await client.readGPIO().catch(() => null)
+      if (gpioData) setGpio(gpioData)
+      const irData = await client.readIR().catch(() => null)
+      if (irData) setIr(irData)
     } catch (e: any) {
       setError(e.message)
     }
   }, [connState, client])
+
+  const isPollingBusy = useCallback(() => flashBusyRef.current, [])
 
   /* Polling loop is managed by the usePolling hook. The hook owns its own
    * cancellation ref so we capture it here to allow imperative stops from
@@ -788,7 +790,7 @@ export default function App() {
     enabled: polling && connState === 'connected',
     intervalMs: pollInterval,
     pollFn: pollSequential,
-    isBusy: () => flashBusyRef.current,
+    isBusy: isPollingBusy,
   })
 
   const togglePolling = () => {

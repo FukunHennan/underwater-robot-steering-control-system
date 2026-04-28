@@ -4,6 +4,8 @@
             "path": "."
         }
     ],
-    "settings": {},
+    "settings": {
+        "Codegeex.RepoIndex": true
+    },
     "extensions": {}
 }

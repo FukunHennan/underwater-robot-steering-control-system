@@ -774,16 +774,10 @@ export class ModbusClient {
     };
   }
 
-  /** Write IR command/data to trigger NEC transmission
-   *  - Write address to REG_IR_TX_CMD (114) first
-   *  - Write command to REG_IR_TX_DATA (115)
-   *  - Writing to TX_CMD triggers transmission
-   */
+  /** Write IR command/data to trigger NEC transmission */
   async writeIRTx(addr: number, cmd: number): Promise<void> {
-    /* First write address to TX_CMD register */
-    await this.writeSingleRegister(REG.IR_TX_CMD, addr & 0xFFFF);
-    /* Then write command to TX_DATA register */
     await this.writeSingleRegister(REG.IR_TX_DATA, cmd & 0xFFFF);
+    await this.writeSingleRegister(REG.IR_TX_CMD, addr & 0xFFFF);
   }
 
   /** Read IR timing parameters (0x0076-0x007D) */

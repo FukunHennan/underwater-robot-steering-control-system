@@ -1,14 +1,8 @@
 import { IRTransmitPanel } from './IRTransmitPanel';
+import { IRReceivePanel } from './IRReceivePanel';
 import { IRTimingPanel, type IRParamsEdit, type IRMessage } from './IRTimingPanel';
 import type { IRData } from '../../lib/modbus';
 
-/**
- * Wrapper that lays out the IR tab cards (transmit + timing). Receive status
- * is folded into the transmit card for at-a-glance feedback after a send.
- *
- * Just composes the sub-panels with the shared connected state and forwards
- * everything else as-is.
- */
 export function IRPanel(props: {
   ir: IRData | null;
   connected: boolean;
@@ -37,8 +31,13 @@ export function IRPanel(props: {
 }) {
   return (
     <>
-      <IRTransmitPanel
+      <IRReceivePanel
         ir={props.ir}
+        connected={props.connected}
+        onRefresh={props.onRefresh}
+        onSaveRx={props.onSaveRx}
+      />
+      <IRTransmitPanel
         connected={props.connected}
         irTxAddr={props.irTxAddr}
         setIrTxAddr={props.setIrTxAddr}
@@ -53,7 +52,6 @@ export function IRPanel(props: {
         onPresetSelect={props.onPresetSelect}
         onSend={props.onSend}
         onRefresh={props.onRefresh}
-        onSaveRx={props.onSaveRx}
       />
       <IRTimingPanel
         irParamsEdit={props.irParamsEdit}
