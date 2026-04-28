@@ -4,8 +4,8 @@ bin/
 obj/
 out/
 Output/
-Software/Output/
-Software/F407/build/
+02-下位机固件/Output/
+02-下位机固件/build/
 *.o
 *.d
 *.lst
