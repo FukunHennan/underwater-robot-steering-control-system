@@ -240,6 +240,19 @@ export const REG = {
   KALMAN_Q_GYRO_Z:  0x009a,
   KALMAN_R_GYRO_Z:  0x009c,
   KALMAN_CMD:       0x009e,
+
+  /* Servo attitude compensation coefficients (0x00A0-0x00DF) — float = 2 regs each */
+  SERVO_COMP_BASE:   0x00a0,  // Base address for servo 1 (8 regs per servo: base + kRoll + kPitch + kYaw)
+  
+  /* Servo auto-compensation enable flags (0x00E0-0x00E7) */
+  SERVO_COMP_ENABLE: 0x00e0,  // Base address for enable flags (1 reg per servo)
+  
+  /* Helper constants for easier access */
+  SERVO_COMP_BASE_ANGLE: 0x00a0,  // Alias for SERVO_COMP_BASE
+  SERVO_COMP_ENABLE_0: 0x00e0,    // Alias for SERVO_COMP_ENABLE
+  
+  /* Calibration save command */
+  CMD_SAVE_CALIB: 0x009f,
 } as const;
 
 /** Calibration channel indices (match firmware CALIB_CH_*) */
@@ -632,6 +645,44 @@ export class ModbusClient {
       if (!verifyCRC(response)) throw new Error('写入响应CRC校验失败');
       if (response[1] & 0x80) throw new Error(`写入异常: 0x${response[2].toString(16)}`);
     });
+  }
+
+  /** Write a float value to two consecutive registers (big-endian IEEE 754) */
+  async writeFloatRegister(addr: number, value: number): Promise<void> {
+    // Convert float to 4 bytes (big-endian)
+    const buffer = new ArrayBuffer(4);
+    new DataView(buffer).setFloat32(0, value, false); // false = big-endian
+    const bytes = new Uint8Array(buffer);
+    
+    // Split into two 16-bit registers (big-endian word order)
+    const regHigh = (bytes[0] << 8) | bytes[1];
+    const regLow = (bytes[2] << 8) | bytes[3];
+    
+    // Write both registers
+    await this.writeMultipleRegisters(addr, [regHigh, regLow]);
+  }
+
+  /** Read a single register */
+  async readSingleRegister(addr: number): Promise<number> {
+    const regs = await this.readHoldingRegisters(addr, 1);
+    return regs[0];
+  }
+
+  /** Read a float value from two consecutive registers (big-endian IEEE 754) */
+  async readFloatRegister(addr: number): Promise<number> {
+    const regs = await this.readHoldingRegisters(addr, 2);
+    
+    // Combine two 16-bit registers into 4 bytes (big-endian)
+    const bytes = new Uint8Array(4);
+    bytes[0] = (regs[0] >> 8) & 0xFF;
+    bytes[1] = regs[0] & 0xFF;
+    bytes[2] = (regs[1] >> 8) & 0xFF;
+    bytes[3] = regs[1] & 0xFF;
+    
+    // Convert to float (big-endian)
+    const buffer = new ArrayBuffer(4);
+    new Uint8Array(buffer).set(bytes);
+    return new DataView(buffer).getFloat32(0, false); // false = big-endian
   }
 
   /** Read all system registers (0x0000-0x0005) */

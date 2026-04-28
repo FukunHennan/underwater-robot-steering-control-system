@@ -28,6 +28,7 @@ import { MagnetometerCard } from './components/panels/MagnetometerCard'
 import { GPIOCard } from './components/panels/GPIOCard'
 import { IRPanel } from './components/ir/IRPanel'
 import { usePolling } from './hooks/usePolling'
+import { ServoCompensationPage } from './pages/ServoCompensationPage'
 
 // ======================== StatusDot (kept local - tightly coupled to header layout) ========================
 
@@ -578,7 +579,7 @@ export default function App() {
   const [logs, setLogs] = useState<ModbusLog[]>([])
   const [polling, setPolling] = useState(false)
   const [pollInterval, setPollInterval] = useState(500)
-  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'adc' | 'baro' | 'gpio' | 'ir' | 'advanced'>('home')
+  const [view, setView] = useState<'home' | 'system' | 'attitude' | 'pwm' | 'comp' | 'adc' | 'baro' | 'gpio' | 'ir' | 'advanced'>('home')
 
   const [system, setSystem] = useState<SystemData | null>(null)
   const [attitude, setAttitude] = useState<AttitudeData | null>(null)
@@ -1335,6 +1336,7 @@ export default function App() {
               { id: 'home',     label: '首页',    icon: <Home className="w-3.5 h-3.5" /> },
               { id: 'attitude', label: '姿态',    icon: <Compass className="w-3.5 h-3.5" /> },
               { id: 'pwm',      label: 'PWM',     icon: <Sliders className="w-3.5 h-3.5" /> },
+              { id: 'comp',     label: '补偿',    icon: <Target className="w-3.5 h-3.5" /> },
               { id: 'adc',      label: 'ADC',     icon: <Thermometer className="w-3.5 h-3.5" /> },
               { id: 'baro',     label: '气压计',  icon: <CloudRain className="w-3.5 h-3.5" /> },
               { id: 'gpio',     label: 'GPIO',    icon: <Zap className="w-3.5 h-3.5" /> },
@@ -1973,6 +1975,10 @@ export default function App() {
           </div>
           <div className="mt-2 text-[10px] text-[--fg-muted] font-mono">freq = TIM_CLK / (PSC+1) / (ARR+1)</div>
         </Card>
+        )}
+
+        {view === 'comp' && (
+          <ServoCompensationPage client={client} />
         )}
 
         {view === 'gpio' && (

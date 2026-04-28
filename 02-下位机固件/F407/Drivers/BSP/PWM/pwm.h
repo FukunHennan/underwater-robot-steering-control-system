@@ -36,6 +36,9 @@
 
 #include "sys.h"
 
+/* PWM channel type definition */
+typedef uint8_t pwm_channel_t;
+
 /* PWM 通道数量定义 */
 #define PWM_TOTAL_CHANNELS        10    /* 总通道数：8+2 */
 #define PWM_SERVO_ESC_CHANNELS    8     /* 舵机/电调通道数 */
