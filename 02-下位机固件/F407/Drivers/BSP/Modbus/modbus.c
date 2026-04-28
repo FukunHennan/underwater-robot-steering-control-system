@@ -393,6 +393,11 @@ static BOOL is_reg_writable(USHORT addr)
     if (addr >= REG_IR_TX_CMD && addr <= REG_IR_TX_DATA) return TRUE;
     if (addr >= REG_IR_LEAD_LOW_LO && addr <= REG_IR_BIT1_HI) return TRUE;
     if (addr >= REG_KALMAN_Q_ROLL && addr <= REG_KALMAN_CMD) return TRUE;
+    
+    /* Servo compensation coefficients */
+    if (addr >= REG_SERVO1_BASE && addr <= REG_SERVO8_K_YAW) return TRUE;
+    if (addr >= REG_SERVO1_AUTO_EN && addr <= REG_SERVO8_AUTO_EN) return TRUE;
+    
     return FALSE;
 }
 
@@ -572,6 +577,44 @@ static void modbus_sync_kalman_to_regs(void)
     g_modbus_registers[REG_KALMAN_CMD] = 0;
 }
 
+/**
+ * @brief  Calculate servo angle with attitude compensation
+ * @param  servo_index: Servo index (0-7)
+ * @retval Calculated PWM pulse width in microseconds
+ */
+static uint16_t calculate_servo_with_compensation(uint8_t servo_index)
+{
+    float roll, pitch, yaw;
+    float base_angle, k_roll, k_pitch, k_yaw;
+    float compensated_angle;
+    int16_t pwm_us;
+    
+    /* Get current attitude data */
+    roll = modbus_get_register_float(REG_ROLL);
+    pitch = modbus_get_register_float(REG_PITCH);
+    yaw = modbus_get_register_float(REG_YAW);
+    
+    /* Get compensation coefficients for this servo */
+    uint16_t base_reg = REG_SERVO1_BASE + servo_index * 8;
+    base_angle = modbus_get_register_float(base_reg);
+    k_roll = modbus_get_register_float(base_reg + 2);
+    k_pitch = modbus_get_register_float(base_reg + 4);
+    k_yaw = modbus_get_register_float(base_reg + 6);
+    
+    /* Calculate compensated angle: BASE + K_ROLL*Roll + K_PITCH*Pitch + K_YAW*Yaw */
+    compensated_angle = base_angle + k_roll * roll + k_pitch * pitch + k_yaw * yaw;
+    
+    /* Convert angle to PWM pulse width (500-2500us for ±90° range) */
+    /* Formula: PWM = 1500 + angle * 10 (center at 1500us, 10us/degree) */
+    pwm_us = (int16_t)(1500.0f + compensated_angle * 10.0f);
+    
+    /* Clamp to valid range */
+    if (pwm_us < 500) pwm_us = 500;
+    if (pwm_us > 2500) pwm_us = 2500;
+    
+    return (uint16_t)pwm_us;
+}
+
 /* ----------------------- Public functions ---------------------------------*/
 
 void modbus_init(void)
@@ -637,6 +680,23 @@ void modbus_init(void)
     /* Initialize Kalman filter registers with default Q/R values */
     modbus_sync_kalman_to_regs();
 
+    /* Initialize servo compensation coefficients (default: no compensation) */
+    for (i = 0; i < 8; i++)
+    {
+        uint16_t base_reg = REG_SERVO1_BASE + i * 8;
+        
+        /* Default base angle: 0 degrees (center position) */
+        modbus_set_register_float(base_reg, 0.0f);
+        
+        /* Default compensation coefficients: all zero (no compensation) */
+        modbus_set_register_float(base_reg + 2, 0.0f);  /* K_ROLL */
+        modbus_set_register_float(base_reg + 4, 0.0f);  /* K_PITCH */
+        modbus_set_register_float(base_reg + 6, 0.0f);  /* K_YAW */
+        
+        /* Disable auto-compensation by default */
+        g_modbus_registers[REG_SERVO1_AUTO_EN + i] = 0;
+    }
+
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
     printf("[MODBUS] eMBInit result: %d\r\n", eStatus);
@@ -699,6 +759,22 @@ void modbus_update_sensors(void)
         (tick - g_ir_last_frame_tick) > IR_LATCH_MS)
     {
         g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_IDLE;
+    }
+
+    /* Servo attitude compensation: auto-update PWM if enabled */
+    for (i = 0; i < 8; i++)
+    {
+        uint16_t auto_en_reg = REG_SERVO1_AUTO_EN + i;
+        if (g_modbus_registers[auto_en_reg] == 1)
+        {
+            /* Auto-compensation enabled, calculate compensated angle */
+            uint16_t pwm_us = calculate_servo_with_compensation((uint8_t)i);
+            
+            /* Update the servo register and apply to PWM hardware */
+            uint16_t servo_reg = REG_SERVO1 + i;
+            g_modbus_registers[servo_reg] = pwm_us;
+            pwm_set_duty((pwm_channel_t)(PWM_CH_SERVO_1 + i), pwm_us);
+        }
     }
 }
 

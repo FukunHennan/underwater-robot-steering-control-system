@@ -235,8 +235,60 @@
 #define REG_KALMAN_R_GYRO_Z    156    /* 0x009C-0x009D */
 #define REG_KALMAN_CMD         158    /* 0x009E: Write 1 = reset filter */
 
+/* Servo attitude compensation coefficients: 0x00A0 - 0x00BF (float = 2 regs each) */
+/* Each servo has 4 parameters: BASE_ANGLE + K_ROLL*Roll + K_PITCH*Pitch + K_YAW*Yaw */
+#define REG_SERVO1_BASE        160    /* 0x00A0-0x00A1: Servo1 base angle (deg) */
+#define REG_SERVO1_K_ROLL      162    /* 0x00A2-0x00A3: Servo1 Roll coefficient */
+#define REG_SERVO1_K_PITCH     164    /* 0x00A4-0x00A5: Servo1 Pitch coefficient */
+#define REG_SERVO1_K_YAW       166    /* 0x00A6-0x00A7: Servo1 Yaw coefficient */
+
+#define REG_SERVO2_BASE        168    /* 0x00A8-0x00A9 */
+#define REG_SERVO2_K_ROLL      170    /* 0x00AA-0x00AB */
+#define REG_SERVO2_K_PITCH     172    /* 0x00AC-0x00AD */
+#define REG_SERVO2_K_YAW       174    /* 0x00AE-0x00AF */
+
+#define REG_SERVO3_BASE        176    /* 0x00B0-0x00B1 */
+#define REG_SERVO3_K_ROLL      178    /* 0x00B2-0x00B3 */
+#define REG_SERVO3_K_PITCH     180    /* 0x00B4-0x00B5 */
+#define REG_SERVO3_K_YAW       182    /* 0x00B6-0x00B7 */
+
+#define REG_SERVO4_BASE        184    /* 0x00B8-0x00B9 */
+#define REG_SERVO4_K_ROLL      186    /* 0x00BA-0x00BB */
+#define REG_SERVO4_K_PITCH     188    /* 0x00BC-0x00BD */
+#define REG_SERVO4_K_YAW       190    /* 0x00BE-0x00BF */
+
+#define REG_SERVO5_BASE        192    /* 0x00C0-0x00C1 */
+#define REG_SERVO5_K_ROLL      194    /* 0x00C2-0x00C3 */
+#define REG_SERVO5_K_PITCH     196    /* 0x00C4-0x00C5 */
+#define REG_SERVO5_K_YAW       198    /* 0x00C6-0x00C7 */
+
+#define REG_SERVO6_BASE        200    /* 0x00C8-0x00C9 */
+#define REG_SERVO6_K_ROLL      202    /* 0x00CA-0x00CB */
+#define REG_SERVO6_K_PITCH     204    /* 0x00CC-0x00CD */
+#define REG_SERVO6_K_YAW       206    /* 0x00CE-0x00CF */
+
+#define REG_SERVO7_BASE        208    /* 0x00D0-0x00D1 */
+#define REG_SERVO7_K_ROLL      210    /* 0x00D2-0x00D3 */
+#define REG_SERVO7_K_PITCH     212    /* 0x00D4-0x00D5 */
+#define REG_SERVO7_K_YAW       214    /* 0x00D6-0x00D7 */
+
+#define REG_SERVO8_BASE        216    /* 0x00D8-0x00D9 */
+#define REG_SERVO8_K_ROLL      218    /* 0x00DA-0x00DB */
+#define REG_SERVO8_K_PITCH     220    /* 0x00DC-0x00DD */
+#define REG_SERVO8_K_YAW       222    /* 0x00DE-0x00DF */
+
+/* Servo auto-compensation enable flags: 0x00E0 - 0x00E7 */
+#define REG_SERVO1_AUTO_EN     224    /* 0x00E0: 0=disable, 1=enable */
+#define REG_SERVO2_AUTO_EN     225    /* 0x00E1 */
+#define REG_SERVO3_AUTO_EN     226    /* 0x00E2 */
+#define REG_SERVO4_AUTO_EN     227    /* 0x00E3 */
+#define REG_SERVO5_AUTO_EN     228    /* 0x00E4 */
+#define REG_SERVO6_AUTO_EN     229    /* 0x00E5 */
+#define REG_SERVO7_AUTO_EN     230    /* 0x00E6 */
+#define REG_SERVO8_AUTO_EN     231    /* 0x00E7 */
+
 /* Total register count */
-#define REG_HOLDING_MAX       159
+#define REG_HOLDING_MAX       232
 
 void modbus_init(void);
 void modbus_process(void);
