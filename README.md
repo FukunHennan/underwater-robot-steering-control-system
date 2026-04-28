@@ -8,44 +8,38 @@
 
 ```
 e:\毕业设计\
-├── 01-硬件设计/              # 硬件电路设计
-│   └── V1.0原理图.pdf        # 电路原理图
-├── 02-下位机固件/            # STM32F407 嵌入式固件
-│   ├── User/                 # 用户应用代码 (demo.c, main.c)
-│   └── Drivers/              # 驱动层代码
-│       ├── BSP/              # 板级支持包
-│       │   ├── Modbus/       # Modbus RTU 从站 (118寄存器)
-│       │   ├── ADC/          # 5通道ADC采集
-│       │   ├── PWM/          # 10路PWM输出
-│       │   ├── GPIO/         # GPIO扩展驱动
-│       │   ├── Calib/        # ADC校准 (Flash存储)
-│       │   └── ATK_MS901M/   # 九轴姿态传感器
-│       └── STM32F4xx_HAL_Driver/
-├── 03-上位机软件/            # Web监控面板
-│   └── modbus-dashboard/     # React + TypeScript 应用
-│       ├── src/              # 源代码
-│       │   ├── components/   # UI组件
-│       │   ├── lib/          # 核心逻辑
-│       │   └── hooks/        # React Hooks
-│       └── package.json      # 依赖配置
 ├── 04-技术文档/              # 项目文档与知识库
 │   ├── Documentation/        # 论文文档
 │   │   ├── 论文正文.md       # 完整论文内容
 │   │   ├── 论文大纲.md       # 论文大纲
 │   │   └── docx/             # Word文档原始文件
-│   └── Wiki/                 # 项目知识库
-│       ├── README.md         # Wiki索引
-│       ├── entities/         # 实体文档
-│       │   ├── modbus-register-map.md  # 寄存器映射详解
-│       │   ├── adc-calibration.md      # ADC校准系统
-│       │   └── web-dashboard.md        # 上位机使用指南
-│       └── health-check-log.md # 健康检查记录
-├── 05-工具脚本/              # 辅助工具与脚本
-│   ├── install-git-hooks.ps1 # Git钩子安装脚本
-│   └── README.md             # 脚本说明
+├── Wiki/                     # 项目知识库 (管理体系)
+│   ├── README.md             # Wiki索引
+│   ├── entities/             # 实体文档
+│   │   ├── modbus-register-map.md  # 寄存器映射详解
+│   │   ├── adc-calibration.md      # ADC校准系统
+│   │   └── web-dashboard.md        # 上位机使用指南
+│   └── health-check-log.md   # 健康检查记录
 ├── .vscode/                  # VS Code 配置
-├── .gitignore                # Git忽略配置
-└── README.md                 # 本文件
+│   ├── settings.json         # VS Code 设置
+│   └── extensions.json       # 推荐扩展
+├── Hardware/                 # 硬件设计
+│   └── V1.0原理图.pdf        # 电路原理图
+├── Software/
+│   ├── F407/                 # STM32F407 下位机代码
+│   │   ├── User/             # 用户代码 (demo.c, main.c)
+│   │   └── Drivers/          # 驱动代码
+│   │       ├── BSP/          # 板级驱动
+│   │       │   ├── Modbus/   # Modbus RTU 从站 (118寄存器)
+│   │       │   ├── ADC/      # 5通道ADC采集
+│   │       │   ├── PWM/      # 10路PWM输出
+│   │       │   ├── GPIO/     # GPIO扩展驱动
+│   │       │   ├── Calib/    # ADC校准 (Flash存储)
+│   │       │   └── ATK_MS901M/# 九轴姿态传感器
+│   │       └── STM32F4xx_HAL_Driver/
+│   └── modbus-dashboard/     # React 上位机 (Web Dashboard)
+├── README.md                 # 本文件
+└── DEVLOG.md                 # 开发日志
 ```
 
 ---
@@ -117,16 +111,18 @@ e:\毕业设计\
 
 ### 下位机编译
 
-``powershell
-# 打开 02-下位机固件/atk_f407.uvprojx (Keil MDK)
-# 或使用 EIDE 插件编译
+```powershell
+# 激活 ESP-IDF 环境 (仅用于参考，实际使用 Keil/EIDE)
+# 打开 Software/F407/atk_f407.uvprojx
+
+# 使用 EIDE 插件编译
 idf.py build
 ```
 
 ### 上位机运行
 
 ```bash
-cd 03-上位机软件/modbus-dashboard
+cd Software/modbus-dashboard
 
 # 安装依赖
 npm install
@@ -187,10 +183,10 @@ http://localhost:5173?mock
 | 文档 | 说明 |
 |------|------|
 | [论文正文](04-技术文档/Documentation/论文正文.md) | 完整毕业设计论文 |
-| [Wiki首页](04-技术文档/Wiki/README.md) | 知识库索引 |
-| [寄存器映射](04-技术文档/Wiki/entities/modbus-register-map.md) | Modbus详细说明 |
-| [ADC校准](04-技术文档/Wiki/entities/adc-calibration.md) | 校准系统详解 |
-| [Dashboard指南](04-技术文档/Wiki/entities/web-dashboard.md) | 上位机使用说明 |
+| [Wiki首页](Wiki/README.md) | 知识库索引 |
+| [寄存器映射](Wiki/entities/modbus-register-map.md) | Modbus详细说明 |
+| [ADC校准](Wiki/entities/adc-calibration.md) | 校准系统详解 |
+| [Dashboard指南](Wiki/entities/web-dashboard.md) | 上位机使用说明 |
 
 ---
 
@@ -209,4 +205,4 @@ http://localhost:5173?mock
 
 详细的开发记录、问题解决和版本变更请查看 [DEVLOG.md](DEVLOG.md)
 
-健康检查记录请查看 [04-技术文档/Wiki/health-check-log.md](04-技术文档/Wiki/health-check-log.md)
+健康检查记录请查看 [Wiki/health-check-log.md](Wiki/health-check-log.md)
