@@ -242,15 +242,15 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   }
 
   return (
-    <div className="space-y-4 p-6 max-w-7xl mx-auto">
+    <div className="space-y-4 p-6 max-w-7xl mx-auto bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
       {/* 页面标题和全局操作 */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+      <div className="flex items-center justify-between pb-4 border-b border-blue-200 bg-white/80 backdrop-blur-sm rounded-lg px-4 py-3 shadow-sm">
         <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-400" />
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-500" />
             舵机姿态自适应补偿
           </h1>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-600 mt-1">
             主从式布局 · 批量参数管理 · 实时预览
           </p>
         </div>
@@ -259,7 +259,7 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
           <button
             onClick={readServoCompParams}
             disabled={loading}
-            className="px-3 py-1.5 text-xs rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? '读取中...' : '刷新参数'}
@@ -267,7 +267,7 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
           
           <button
             onClick={handleSaveAll}
-            className="px-3 py-1.5 text-xs rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs rounded bg-green-500 text-white hover:bg-green-600 transition-colors flex items-center gap-1.5 shadow-sm"
           >
             <Save className="w-3.5 h-3.5" />
             保存全部
@@ -277,54 +277,54 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
 
       {/* 错误提示 */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm text-red-400">{error}</p>
+            <p className="text-sm text-red-700">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400 transition-colors">✕</button>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 transition-colors">✕</button>
         </div>
       )}
 
       {/* 实时姿态监控 */}
       {attitude && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-sky-500/10 to-blue-500/10 border border-sky-500/30 p-3 text-center">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-sky-500/10 rounded-full blur-xl"></div>
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-sky-400 to-blue-500 p-4 text-center shadow-md">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full blur-xl"></div>
             <div className="relative">
-              <div className="text-[10px] text-sky-400 uppercase tracking-wider mb-1">Roll 横滚</div>
-              <div className="text-2xl font-bold text-white tabular-nums">{attitude.roll.toFixed(1)}°</div>
+              <div className="text-xs text-white/90 uppercase tracking-wider mb-1 font-medium">Roll 横滚</div>
+              <div className="text-3xl font-bold text-white tabular-nums drop-shadow-sm">{attitude.roll.toFixed(1)}°</div>
             </div>
           </div>
           
-          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/30 p-3 text-center">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-emerald-400 to-green-500 p-4 text-center shadow-md">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full blur-xl"></div>
             <div className="relative">
-              <div className="text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Pitch 俯仰</div>
-              <div className="text-2xl font-bold text-white tabular-nums">{attitude.pitch.toFixed(1)}°</div>
+              <div className="text-xs text-white/90 uppercase tracking-wider mb-1 font-medium">Pitch 俯仰</div>
+              <div className="text-3xl font-bold text-white tabular-nums drop-shadow-sm">{attitude.pitch.toFixed(1)}°</div>
             </div>
           </div>
           
-          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30 p-3 text-center">
-            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl"></div>
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 p-4 text-center shadow-md">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 rounded-full blur-xl"></div>
             <div className="relative">
-              <div className="text-[10px] text-amber-400 uppercase tracking-wider mb-1">Yaw 航向</div>
-              <div className="text-2xl font-bold text-white tabular-nums">{attitude.yaw.toFixed(1)}°</div>
+              <div className="text-xs text-white/90 uppercase tracking-wider mb-1 font-medium">Yaw 航向</div>
+              <div className="text-3xl font-bold text-white tabular-nums drop-shadow-sm">{attitude.yaw.toFixed(1)}°</div>
             </div>
           </div>
         </div>
       )}
 
       {/* 全局补偿参数配置 */}
-      <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+      <div className="rounded-lg border border-blue-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Zap className="w-4 h-4 text-blue-400" />
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-blue-500" />
             全局补偿参数（批量应用）
           </h2>
           <button
             onClick={applyGlobalToAll}
-            className="px-3 py-1 text-xs rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
+            className="px-3 py-1 text-xs rounded bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm"
           >
             应用到全部舵机
           </button>
@@ -332,91 +332,91 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
         
         <div className="grid grid-cols-4 gap-3">
           <div>
-            <label className="text-[10px] text-gray-400 block mb-1">BASE (°)</label>
+            <label className="text-xs text-gray-600 block mb-1 font-medium">BASE (°)</label>
             <input
               type="number"
               step="0.1"
               value={globalParams.baseAngle}
               onChange={(e) => setGlobalParams({...globalParams, baseAngle: parseFloat(e.target.value) || 0})}
-              className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+              className="w-full px-2 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
             />
           </div>
           <div>
-            <label className="text-[10px] text-gray-400 block mb-1">K_Roll</label>
+            <label className="text-xs text-gray-600 block mb-1 font-medium">K_Roll</label>
             <input
               type="number"
               step="0.001"
               value={globalParams.kRoll}
               onChange={(e) => setGlobalParams({...globalParams, kRoll: parseFloat(e.target.value) || 0})}
-              className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+              className="w-full px-2 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
             />
           </div>
           <div>
-            <label className="text-[10px] text-gray-400 block mb-1">K_Pitch</label>
+            <label className="text-xs text-gray-600 block mb-1 font-medium">K_Pitch</label>
             <input
               type="number"
               step="0.001"
               value={globalParams.kPitch}
               onChange={(e) => setGlobalParams({...globalParams, kPitch: parseFloat(e.target.value) || 0})}
-              className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+              className="w-full px-2 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
             />
           </div>
           <div>
-            <label className="text-[10px] text-gray-400 block mb-1">K_Yaw</label>
+            <label className="text-xs text-gray-600 block mb-1 font-medium">K_Yaw</label>
             <input
               type="number"
               step="0.001"
               value={globalParams.kYaw}
               onChange={(e) => setGlobalParams({...globalParams, kYaw: parseFloat(e.target.value) || 0})}
-              className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+              className="w-full px-2 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
             />
           </div>
         </div>
       </div>
 
       {/* 舵机状态总览表格 */}
-      <div className="rounded-lg border border-gray-700 bg-gray-800/50 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-700 bg-gray-900/50">
-          <h2 className="text-sm font-semibold text-white">舵机状态总览</h2>
+      <div className="rounded-lg border border-blue-200 bg-white overflow-hidden shadow-sm">
+        <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <h2 className="text-sm font-semibold text-gray-800">舵机状态总览</h2>
         </div>
         
-        <table className="w-full text-xs">
-          <thead className="bg-gray-900/30 text-gray-400">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="px-4 py-2 text-left">ID</th>
-              <th className="px-4 py-2 text-left">基准角</th>
-              <th className="px-4 py-2 text-left">K_Roll</th>
-              <th className="px-4 py-2 text-left">K_Pitch</th>
-              <th className="px-4 py-2 text-left">K_Yaw</th>
-              <th className="px-4 py-2 text-left">目标角</th>
-              <th className="px-4 py-2 text-left">PWM</th>
-              <th className="px-4 py-2 text-left">状态</th>
-              <th className="px-4 py-2 text-left">操作</th>
+              <th className="px-4 py-2 text-left font-medium">ID</th>
+              <th className="px-4 py-2 text-left font-medium">基准角</th>
+              <th className="px-4 py-2 text-left font-medium">K_Roll</th>
+              <th className="px-4 py-2 text-left font-medium">K_Pitch</th>
+              <th className="px-4 py-2 text-left font-medium">K_Yaw</th>
+              <th className="px-4 py-2 text-left font-medium">目标角</th>
+              <th className="px-4 py-2 text-left font-medium">PWM</th>
+              <th className="px-4 py-2 text-left font-medium">状态</th>
+              <th className="px-4 py-2 text-left font-medium">操作</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-700">
+          <tbody className="divide-y divide-gray-200">
             {servoComp.map((servo, i) => {
               const targetAngle = calculateTargetAngle(servo)
               const pwm = Math.round(1500 + targetAngle * 10)
               
               return (
-                <tr key={i} className="hover:bg-gray-700/30 transition-colors">
-                  <td className="px-4 py-2 font-mono text-white">#{i + 1}</td>
-                  <td className="px-4 py-2 font-mono">{servo.baseAngle.toFixed(1)}°</td>
-                  <td className="px-4 py-2 font-mono">{servo.kRoll.toFixed(3)}</td>
-                  <td className="px-4 py-2 font-mono">{servo.kPitch.toFixed(3)}</td>
-                  <td className="px-4 py-2 font-mono">{servo.kYaw.toFixed(3)}</td>
-                  <td className="px-4 py-2 font-mono text-blue-400">{targetAngle.toFixed(1)}°</td>
-                  <td className="px-4 py-2 font-mono text-green-400">{pwm} μs</td>
+                <tr key={i} className="hover:bg-blue-50 transition-colors">
+                  <td className="px-4 py-2 font-mono text-gray-800 font-medium">#{i + 1}</td>
+                  <td className="px-4 py-2 font-mono text-gray-700">{servo.baseAngle.toFixed(1)}°</td>
+                  <td className="px-4 py-2 font-mono text-gray-700">{servo.kRoll.toFixed(3)}</td>
+                  <td className="px-4 py-2 font-mono text-gray-700">{servo.kPitch.toFixed(3)}</td>
+                  <td className="px-4 py-2 font-mono text-gray-700">{servo.kYaw.toFixed(3)}</td>
+                  <td className="px-4 py-2 font-mono text-blue-600 font-semibold">{targetAngle.toFixed(1)}°</td>
+                  <td className="px-4 py-2 font-mono text-green-600 font-semibold">{pwm} μs</td>
                   <td className="px-4 py-2">
                     {servo.autoEnabled ? (
-                      <span className="flex items-center gap-1 text-green-400">
-                        <CheckCircle2 className="w-3 h-3" />
+                      <span className="flex items-center gap-1 text-green-600 font-medium">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                         启用
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-gray-500">
-                        <XCircle className="w-3 h-3" />
+                      <span className="flex items-center gap-1 text-gray-400">
+                        <XCircle className="w-3.5 h-3.5" />
                         禁用
                       </span>
                     )}
@@ -424,16 +424,16 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
                   <td className="px-4 py-2">
                     <button
                       onClick={() => setExpandedServo(expandedServo === i ? null : i)}
-                      className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                      className="text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 font-medium"
                     >
                       {expandedServo === i ? (
                         <>
-                          <ChevronDown className="w-3 h-3" />
+                          <ChevronDown className="w-3.5 h-3.5" />
                           收起
                         </>
                       ) : (
                         <>
-                          <ChevronRight className="w-3 h-3" />
+                          <ChevronRight className="w-3.5 h-3.5" />
                           编辑
                         </>
                       )}
@@ -448,14 +448,14 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
 
       {/* 展开的舵机详细配置 */}
       {expandedServo !== null && (
-        <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 animate-in fade-in slide-in-from-top-2">
+        <div className="rounded-lg border-2 border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 p-5 animate-in fade-in slide-in-from-top-2 shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-base font-semibold text-gray-800">
               舵机 #{expandedServo + 1} 详细配置
             </h3>
             <button
               onClick={() => setExpandedServo(null)}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-500 hover:text-gray-700 transition-colors text-lg"
             >
               ✕
             </button>
@@ -465,71 +465,71 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
             {/* 左侧：参数编辑 */}
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] text-gray-400 block mb-1">基础角度 (°)</label>
+                <label className="text-xs text-gray-600 block mb-1 font-medium">基础角度 (°)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={servoComp[expandedServo].baseAngle}
                   onChange={(e) => handleUpdate(expandedServo, 'baseAngle', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 block mb-1">K_Roll</label>
+                <label className="text-xs text-gray-600 block mb-1 font-medium">K_Roll</label>
                 <input
                   type="number"
                   step="0.001"
                   value={servoComp[expandedServo].kRoll}
                   onChange={(e) => handleUpdate(expandedServo, 'kRoll', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 block mb-1">K_Pitch</label>
+                <label className="text-xs text-gray-600 block mb-1 font-medium">K_Pitch</label>
                 <input
                   type="number"
                   step="0.001"
                   value={servoComp[expandedServo].kPitch}
                   onChange={(e) => handleUpdate(expandedServo, 'kPitch', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400 block mb-1">K_Yaw</label>
+                <label className="text-xs text-gray-600 block mb-1 font-medium">K_Yaw</label>
                 <input
                   type="number"
                   step="0.001"
                   value={servoComp[expandedServo].kYaw}
                   onChange={(e) => handleUpdate(expandedServo, 'kYaw', parseFloat(e.target.value) || 0)}
-                  className="w-full px-2 py-1.5 text-xs rounded border border-gray-700 bg-gray-900 text-white focus:border-blue-500 outline-none"
+                  className="w-full px-3 py-2 text-sm rounded border border-gray-300 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                 />
               </div>
             </div>
             
             {/* 右侧：预览和开关 */}
             <div className="space-y-3">
-              <div className="p-3 rounded bg-gray-900/50 border border-gray-700">
-                <div className="text-[10px] text-gray-400 mb-1">目标角度预览</div>
-                <div className="text-2xl font-bold text-blue-400 tabular-nums">
+              <div className="p-4 rounded-lg bg-white border-2 border-blue-300 shadow-sm">
+                <div className="text-xs text-gray-600 mb-1 font-medium">目标角度预览</div>
+                <div className="text-3xl font-bold text-blue-600 tabular-nums">
                   {calculateTargetAngle(servoComp[expandedServo]).toFixed(1)}°
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  PWM: {Math.round(1500 + calculateTargetAngle(servoComp[expandedServo]) * 10)} μs
+                <div className="text-sm text-gray-600 mt-2 font-medium">
+                  PWM: <span className="text-green-600 font-bold">{Math.round(1500 + calculateTargetAngle(servoComp[expandedServo]) * 10)} μs</span>
                 </div>
               </div>
               
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer p-3 rounded-lg bg-white border border-gray-200 hover:border-blue-300 transition-colors">
                 <input
                   type="checkbox"
                   checked={servoComp[expandedServo].autoEnabled}
                   onChange={(e) => handleToggleAuto(expandedServo, e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-blue-500 focus:ring-blue-500/50"
+                  className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-xs text-gray-300">启用自动补偿</span>
+                <span className="text-sm text-gray-700 font-medium">启用自动补偿</span>
               </label>
               
-              <div className="p-2 rounded bg-gray-900/30 border border-gray-700 text-[10px] text-gray-400">
-                <div className="font-mono">
+              <div className="p-3 rounded-lg bg-white border border-gray-200 text-xs text-gray-600 font-medium">
+                <div className="font-mono text-sm">
                   θ = {servoComp[expandedServo].baseAngle.toFixed(1)} + 
                   ({servoComp[expandedServo].kRoll.toFixed(3)})×R + 
                   ({servoComp[expandedServo].kPitch.toFixed(3)})×P + 
