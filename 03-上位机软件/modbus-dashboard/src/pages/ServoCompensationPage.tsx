@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ModbusClient, REG } from '../lib/modbus'
 import { ServoCompensationCard } from '../components/panels/ServoCompensationCard'
-import { Card } from '../components/common/Card'
-import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Zap, RefreshCw, Save } from 'lucide-react'
 import type { AttitudeData } from '../lib/types'
 
 interface ServoCompensationPageProps {
@@ -163,60 +162,81 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* 标题和说明 */}
-      <div className="flex items-start justify-between">
+    <div className="space-y-4 p-6 max-w-7xl mx-auto">
+      {/* 页面标题和全局操作 */}
+      <div className="flex items-center justify-between pb-4 border-b border-gray-800">
         <div>
-          <h1 className="text-2xl font-bold mb-2">舵机姿态自适应补偿</h1>
-          <p className="text-sm text-gray-400 max-w-2xl">
-            根据 IMU 姿态数据（Roll/Pitch/Yaw）自动调整舵机角度，实现水下机器人姿态稳定控制。
-            补偿公式：目标角度 = BASE_ANGLE + K_ROLL×Roll + K_PITCH×Pitch + K_YAW×Yaw
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400" />
+            舵机姿态自适应补偿
+          </h1>
+          <p className="text-xs text-gray-400 mt-1">
+            根据 IMU 姿态数据自动调整舵机角度 · 实时预览补偿效果
           </p>
         </div>
-        <div className="flex gap-2">
+        
+        <div className="flex items-center gap-2">
           <button
             onClick={readServoCompParams}
             disabled={loading}
-            className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-xs rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? '读取中...' : '刷新参数'}
+          </button>
+          
+          <button
+            onClick={() => handleSave(0)}
+            className="px-3 py-1.5 text-xs rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors flex items-center gap-1.5"
+          >
+            <Save className="w-3.5 h-3.5" />
+            保存全部
           </button>
         </div>
       </div>
 
       {/* 错误提示 */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm text-red-400">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400">✕</button>
+          <button onClick={() => setError(null)} className="text-red-400/60 hover:text-red-400 transition-colors">✕</button>
         </div>
       )}
 
-      {/* 当前姿态显示 */}
+      {/* 当前姿态显示 - 紧凑的卡片设计 */}
       {attitude && (
-        <Card title="当前姿态" icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-sky-500/10 rounded">
-              <div className="text-xs text-gray-400 mb-1">Roll 横滚</div>
-              <div className="text-xl font-mono text-sky-400">{attitude.roll.toFixed(2)}°</div>
-            </div>
-            <div className="text-center p-3 bg-emerald-500/10 rounded">
-              <div className="text-xs text-gray-400 mb-1">Pitch 俯仰</div>
-              <div className="text-xl font-mono text-emerald-400">{attitude.pitch.toFixed(2)}°</div>
-            </div>
-            <div className="text-center p-3 bg-amber-500/10 rounded">
-              <div className="text-xs text-gray-400 mb-1">Yaw 航向</div>
-              <div className="text-xl font-mono text-amber-400">{attitude.yaw.toFixed(2)}°</div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-sky-500/10 to-blue-500/10 border border-sky-500/30 p-3 text-center">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-sky-500/10 rounded-full blur-xl"></div>
+            <div className="relative">
+              <div className="text-[10px] text-sky-400 uppercase tracking-wider mb-1">Roll 横滚</div>
+              <div className="text-2xl font-bold text-white tabular-nums">{attitude.roll.toFixed(1)}°</div>
             </div>
           </div>
-        </Card>
+          
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/30 p-3 text-center">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl"></div>
+            <div className="relative">
+              <div className="text-[10px] text-emerald-400 uppercase tracking-wider mb-1">Pitch 俯仰</div>
+              <div className="text-2xl font-bold text-white tabular-nums">{attitude.pitch.toFixed(1)}°</div>
+            </div>
+          </div>
+          
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30 p-3 text-center">
+            <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-full blur-xl"></div>
+            <div className="relative">
+              <div className="text-[10px] text-amber-400 uppercase tracking-wider mb-1">Yaw 航向</div>
+              <div className="text-2xl font-bold text-white tabular-nums">{attitude.yaw.toFixed(1)}°</div>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* 舵机补偿配置面板 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 舵机补偿配置面板 - 响应式网格 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {servoComp.map((comp, i) => (
           <ServoCompensationCard
             key={i}
