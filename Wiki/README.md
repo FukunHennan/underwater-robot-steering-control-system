@@ -18,7 +18,9 @@ Wiki/
     ├── kalman-filter.md         # 卡尔曼滤波算法
     ├── pwm-control.md           # PWM 控制逻辑
     ├── ir-remote.md             # 红外遥控协议
-    ├── servo-compensation.md    # ✨ 舵机姿态补偿系统
+    ├── servo-compensation.md    # ✨ 舵机姿态补偿系统设计
+    ├── servo-compensation-user-guide.md  # 🎯 舵机补偿使用指南
+    ├── servo-compensation-quickstart.md  # ⚡ 舵机补偿快速开始
     ├── build-flash.md           # 编译与烧录指南
     ├── web-dashboard.md         # Web 上位机使用指南
     └── svg-flowchart-skill.md   # SVG 流程图技能
@@ -49,7 +51,9 @@ Wiki/
 | [卡尔曼滤波](entities/kalman-filter.md) | 六通道滤波算法 |
 | [PWM 控制](entities/pwm-control.md) | 10 路舵机/LED 控制 |
 | [红外遥控](entities/ir-remote.md) | NEC 协议解码 |
-| [✨ 舵机姿态补偿](entities/servo-compensation.md) | 姿态自适应调节系统 |
+| [✨ 舵机姿态补偿设计](entities/servo-compensation.md) | 系统架构与技术实现 |
+| [🎯 舵机补偿使用指南](entities/servo-compensation-user-guide.md) | 详细操作步骤与技巧 |
+| [⚡ 舵机补偿快速开始](entities/servo-compensation-quickstart.md) | Modbus 工具测试方法 |
 | [编译烧录](entities/build-flash.md) | Keil MDK 开发流程 |
 | [Dashboard 使用指南](entities/web-dashboard.md) | 上位机功能详解 |
 
@@ -63,7 +67,7 @@ Wiki/
 | GPIO 扩展 | 4 路可配置输入/输出 |
 | 红外遥控 | NEC 协议解码 (可调参数) |
 | Modbus RTU | 159 寄存器从站 |
-| ✨ 姿态补偿 | 舵机根据姿态自动调节角度 |
+| ✨ 姿态补偿 | 舵机根据姿态自动调节角度（Web UI + Modbus 工具） |
 
 ## 更新日志
 
