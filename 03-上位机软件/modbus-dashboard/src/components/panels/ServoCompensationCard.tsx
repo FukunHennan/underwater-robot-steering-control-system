@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Sliders, RefreshCw, Save, RotateCcw } from 'lucide-react'
-import type { AttitudeData } from '../lib/types'
-import { Card } from './common/Card'
+import type { AttitudeData } from '../../lib/types'
+import { Card } from '../common/Card'
 
 interface ServoCompensationData {
   baseAngle: number
@@ -65,30 +65,24 @@ export function ServoCompensationCard({
   const previewPWM = calculatePWM(previewAngle)
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-[--fg] flex items-center gap-2">
-          <Sliders className="w-4 h-4" />
-          舵机 {servoIndex + 1} 姿态补偿
-        </h3>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1 text-xs cursor-pointer">
-            <input
-              type="checkbox"
-              checked={data.autoEnabled}
-              onChange={(e) => onToggleAuto(servoIndex, e.target.checked)}
-              className="rounded border-[--border] bg-[--bg-elevated]"
-            />
-            <span className="text-[--fg-muted]">自动补偿</span>
-          </label>
-          <button
-            onClick={() => onSave(servoIndex)}
-            className="p-1 rounded hover:bg-[--bg-elevated] transition-colors"
-            title="保存参数"
-          >
-            <Save className="w-3.5 h-3.5 text-[--fg-muted]" />
-          </button>
-        </div>
+    <Card title={`舵机 ${servoIndex + 1} 姿态补偿`} icon={<Sliders className="w-4 h-4" />}>
+      <div className="flex items-center justify-end mb-3">
+        <label className="flex items-center gap-1 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={data.autoEnabled}
+            onChange={(e) => onToggleAuto(servoIndex, e.target.checked)}
+            className="rounded border-[--border] bg-[--bg-elevated]"
+          />
+          <span className="text-[--fg-muted]">自动补偿</span>
+        </label>
+        <button
+          onClick={() => onSave(servoIndex)}
+          className="p-1 rounded hover:bg-[--bg-elevated] transition-colors"
+          title="保存参数"
+        >
+          <Save className="w-3.5 h-3.5 text-[--fg-muted]" />
+        </button>
       </div>
 
       {/* Coefficient inputs */}
