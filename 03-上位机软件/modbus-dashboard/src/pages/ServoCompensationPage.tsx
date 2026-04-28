@@ -38,6 +38,7 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedServo, setExpandedServo] = useState<number | null>(null)
+  const [hasInitialized, setHasInitialized] = useState(false)  // 防止重复初始化
 
   // 读取姿态数据
   const readAttitude = async () => {
@@ -56,31 +57,52 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
     setLoading(true)
     setError(null)
     try {
+      console.log('开始读取舵机补偿参数...')
       const newComp = await Promise.all(
         Array(8).fill(null).map(async (_, i) => {
-          const baseAddr = REG.SERVO_COMP_BASE_ANGLE + i * 4
-          const [base, kRoll, kPitch, kYaw] = await Promise.all([
-            client.readFloatRegister(baseAddr),
-            client.readFloatRegister(baseAddr + 1),
-            client.readFloatRegister(baseAddr + 2),
-            client.readFloatRegister(baseAddr + 3),
-          ])
-          const enabledAddr = REG.SERVO_COMP_ENABLE_0 + i
-          const enabledWord = await client.readSingleRegister(enabledAddr)
-          const autoEnabled = !!(enabledWord & 0x0001)
-          
-          return {
-            baseAngle: base || 90,
-            kRoll: kRoll || 0,
-            kPitch: kPitch || 0,
-            kYaw: kYaw || 0,
-            autoEnabled,
+          try {
+            const baseAddr = REG.SERVO_COMP_BASE_ANGLE + i * 8  // 每个舵机占用 8 个寄存器（4个float × 2）
+            console.log(`读取舵机 ${i + 1}, 基地址: 0x${baseAddr.toString(16).toUpperCase()}`)
+            
+            const [base, kRoll, kPitch, kYaw] = await Promise.all([
+              client.readFloatRegister(baseAddr),
+              client.readFloatRegister(baseAddr + 2),   // float 占用 2 个寄存器
+              client.readFloatRegister(baseAddr + 4),
+              client.readFloatRegister(baseAddr + 6),
+            ])
+            
+            const enabledAddr = REG.SERVO_COMP_ENABLE_0 + i
+            const enabledWord = await client.readSingleRegister(enabledAddr)
+            const autoEnabled = !!(enabledWord & 0x0001)
+            
+            console.log(`舵机 ${i + 1}: BASE=${base}, K_R=${kRoll}, K_P=${kPitch}, K_Y=${kYaw}, EN=${autoEnabled}`)
+            
+            return {
+              baseAngle: base || 90,
+              kRoll: kRoll || 0,
+              kPitch: kPitch || 0,
+              kYaw: kYaw || 0,
+              autoEnabled,
+            }
+          } catch (err) {
+            console.error(`读取舵机 ${i + 1} 失败:`, err)
+            // 返回默认值，避免整个读取失败
+            return {
+              baseAngle: 90,
+              kRoll: 0,
+              kPitch: 0,
+              kYaw: 0,
+              autoEnabled: true,
+            }
           }
         })
       )
       setServoComp(newComp)
+      console.log('舵机补偿参数读取完成')
     } catch (err) {
-      setError(`读取补偿参数失败: ${(err as Error).message}`)
+      const errorMsg = `读取补偿参数失败: ${(err as Error).message}`
+      console.error(errorMsg)
+      setError(errorMsg)
     } finally {
       setLoading(false)
     }
@@ -90,7 +112,7 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   const handleUpdate = async (index: number, field: keyof ServoCompData, value: number) => {
     if (!client) return
     try {
-      const baseAddr = REG.SERVO_COMP_BASE_ANGLE + index * 4
+      const baseAddr = REG.SERVO_COMP_BASE_ANGLE + index * 8  // 每个舵机占用 8 个寄存器
       let addr = baseAddr
       
       switch (field) {
@@ -98,16 +120,17 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
           addr = baseAddr
           break
         case 'kRoll':
-          addr = baseAddr + 1
+          addr = baseAddr + 2  // float 占用 2 个寄存器
           break
         case 'kPitch':
-          addr = baseAddr + 2
+          addr = baseAddr + 4
           break
         case 'kYaw':
-          addr = baseAddr + 3
+          addr = baseAddr + 6
           break
       }
       
+      console.log(`写入舵机 ${index + 1} ${field}: 地址 0x${addr.toString(16).toUpperCase()}, 值 ${value}`)
       await client.writeFloatRegister(addr, value)
       
       setServoComp(prev => {
@@ -116,7 +139,9 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
         return newComp
       })
     } catch (err) {
-      setError(`写入参数失败: ${(err as Error).message}`)
+      const errorMsg = `写入参数失败: ${(err as Error).message}`
+      console.error(errorMsg)
+      setError(errorMsg)
     }
   }
 
@@ -141,7 +166,8 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   const handleSaveAll = async () => {
     if (!client) return
     try {
-      await client.writeSingleRegister(REG.CMD_SAVE_CALIB, 0xA5A5)
+      // 使用现有的校准保存命令（地址 0x006A，值 0x5A5A）
+      await client.writeSingleRegister(0x006A, 0x5A5A)
       setError(null)
       alert('所有参数已保存到 Flash')
     } catch (err) {
@@ -153,12 +179,15 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
   const applyGlobalToAll = async () => {
     if (!client) return
     try {
+      console.log('应用全局参数到所有舵机...')
       for (let i = 0; i < 8; i++) {
-        const baseAddr = REG.SERVO_COMP_BASE_ANGLE + i * 4
+        const baseAddr = REG.SERVO_COMP_BASE_ANGLE + i * 8
+        console.log(`写入舵机 ${i + 1}: BASE=${globalParams.baseAngle}, K_R=${globalParams.kRoll}, K_P=${globalParams.kPitch}, K_Y=${globalParams.kYaw}`)
+        
         await client.writeFloatRegister(baseAddr, globalParams.baseAngle)
-        await client.writeFloatRegister(baseAddr + 1, globalParams.kRoll)
-        await client.writeFloatRegister(baseAddr + 2, globalParams.kPitch)
-        await client.writeFloatRegister(baseAddr + 3, globalParams.kYaw)
+        await client.writeFloatRegister(baseAddr + 2, globalParams.kRoll)
+        await client.writeFloatRegister(baseAddr + 4, globalParams.kPitch)
+        await client.writeFloatRegister(baseAddr + 6, globalParams.kYaw)
       }
       
       setServoComp(prev => prev.map(servo => ({
@@ -170,8 +199,11 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
       })))
       
       setError(null)
+      console.log('全局参数应用完成')
     } catch (err) {
-      setError(`应用全局参数失败: ${(err as Error).message}`)
+      const errorMsg = `应用全局参数失败: ${(err as Error).message}`
+      console.error(errorMsg)
+      setError(errorMsg)
     }
   }
 
@@ -186,14 +218,16 @@ export function ServoCompensationPage({ client }: ServoCompensationPageProps) {
 
   // 初始加载
   useEffect(() => {
-    if (client) {
+    if (client && !hasInitialized) {
+      console.log('补偿页面初始化，读取参数...')
       readAttitude()
       readServoCompParams()
+      setHasInitialized(true)
       
       const interval = setInterval(readAttitude, 500)
       return () => clearInterval(interval)
     }
-  }, [client])
+  }, [client, hasInitialized])
 
   if (!client) {
     return (

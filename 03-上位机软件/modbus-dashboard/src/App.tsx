@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Waves, Plug, PlugZap, RefreshCw, Activity, Thermometer, CloudRain,
   Gauge, Sliders, Cpu, AlertTriangle, Zap, FileText, LayoutDashboard, Trash2, Settings,
