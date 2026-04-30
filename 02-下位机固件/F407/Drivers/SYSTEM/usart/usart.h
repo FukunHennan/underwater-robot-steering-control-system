@@ -63,9 +63,8 @@
 #define USART_EN_RX     1                       /* Enable USART1 receive: 1=enable, 0=disable */
 #define RXBUFFERSIZE    1                       /* USART1 HAL receive buffer size */
 
-#define USART2_REC_LEN   256                    /* USART2 receive buffer size: 256 bytes */
-#define USART2_EN_RX     1                      /* Enable USART2 receive: 1=enable, 0=disable */
-#define USART2_RXBUFFERSIZE    2                /* USART2 HAL receive buffer size (2 needed for 9-bit word length) */
+#define USART2_REC_LEN       256   /* USART2 Modbus frame processing buffer (bytes) */
+#define USART2_DMA_RX_SIZE   256   /* USART2 DMA circular RX buffer size (bytes)    */
 
 /* Modbus RTU Configuration */
 #define MODBUS_BAUDRATE        9600             /* Modbus default baudrate */
@@ -81,15 +80,22 @@ extern uint16_t g_usart_rx_sta;                 /* USART1 receive status */
 extern uint8_t g_rx_buffer[RXBUFFERSIZE];       /* USART1 HAL receive buffer */
 
 /* USART2 variables */
-extern UART_HandleTypeDef g_uart2_handle;       /* USART2 handle */
-extern uint8_t  g_usart2_rx_buf[USART2_REC_LEN];  /* USART2 receive buffer */
-extern uint16_t g_usart2_rx_sta;                 /* USART2 receive status */
-extern uint8_t  g_usart2_rx_buffer[USART2_RXBUFFERSIZE];  /* USART2 HAL receive buffer */
+extern UART_HandleTypeDef g_uart2_handle;                    /* USART2 handle           */
+extern DMA_HandleTypeDef  g_dma_usart2_rx;                   /* DMA1 Stream5 Ch4 RX     */
+extern DMA_HandleTypeDef  g_dma_usart2_tx;                   /* DMA1 Stream6 Ch4 TX     */
+extern uint8_t  g_usart2_dma_rx_buf[USART2_DMA_RX_SIZE];     /* DMA RX circular buffer  */
+extern uint8_t  g_usart2_rx_buf[USART2_REC_LEN];             /* Modbus frame buffer      */
+extern volatile uint16_t  g_usart2_rx_sta;                   /* Received byte count      */
+
+/* Debug output - default OFF; enable via Modbus REG_DBG_EN or USART1 "DBG 1" */
+extern volatile uint8_t g_debug_en;
+#define DBG(fmt, ...) do { if (g_debug_en) printf(fmt, ##__VA_ARGS__); } while(0)
 
 /* Function declarations */
-void usart_init(uint32_t baudrate);             /* Initialize USART1 (debug) */
-void usart2_init(uint32_t baudrate);            /* Initialize USART2 (Modbus) */
-void usart2_send_data(uint8_t *data, uint16_t len);  /* Send data via USART2 */
+void usart_init(uint32_t baudrate);             /* Initialize USART1 (debug)             */
+void usart2_init(uint32_t baudrate);            /* Initialize USART2 Modbus (DMA mode)   */
+void usart1_process_cmd(void);                  /* Parse debug commands from USART1 RX   */
+void usart2_send_data(uint8_t *data, uint16_t len);
 
 #endif
 

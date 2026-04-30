@@ -1,130 +1,4 @@
-/**
- * Modbus RTU protocol over Web Serial API
- * Matches the STM32F407 register map exactly.
- */
-
-// ======================== CRC16 ========================
-
-const CRC_TABLE = new Uint16Array(256);
-for (let i = 0; i < 256; i++) {
-  let crc = i;
-  for (let j = 0; j < 8; j++) {
-    crc = crc & 1 ? (crc >> 1) ^ 0xa001 : crc >> 1;
-  }
-  CRC_TABLE[i] = crc;
-}
-
-function crc16(data: Uint8Array): number {
-  let crc = 0xffff;
-  for (let i = 0; i < data.length; i++) {
-    crc = (crc >> 8) ^ CRC_TABLE[(crc ^ data[i]) & 0xff];
-  }
-  return crc;
-}
-
-function appendCRC(frame: Uint8Array): Uint8Array {
-  const crc = crc16(frame);
-  const result = new Uint8Array(frame.length + 2);
-  result.set(frame);
-  result[frame.length] = crc & 0xff;
-  result[frame.length + 1] = (crc >> 8) & 0xff;
-  return result;
-}
-
-function verifyCRC(frame: Uint8Array): boolean {
-  if (frame.length < 4) return false;
-  const payload = frame.slice(0, frame.length - 2);
-  const received = frame[frame.length - 2] | (frame[frame.length - 1] << 8);
-  return crc16(payload) === received;
-}
-
-// ======================== Frame builders ========================
-
-/** FC03: Read Holding Registers */
-function buildReadHolding(slaveId: number, startAddr: number, numRegs: number): Uint8Array {
-  const frame = new Uint8Array([
-    slaveId,
-    0x03,
-    (startAddr >> 8) & 0xff, startAddr & 0xff,
-    (numRegs >> 8) & 0xff, numRegs & 0xff,
-  ]);
-  return appendCRC(frame);
-}
-
-/** FC06: Write Single Register */
-function buildWriteSingle(slaveId: number, addr: number, value: number): Uint8Array {
-  const frame = new Uint8Array([
-    slaveId,
-    0x06,
-    (addr >> 8) & 0xff, addr & 0xff,
-    (value >> 8) & 0xff, value & 0xff,
-  ]);
-  return appendCRC(frame);
-}
-
-/** FC16: Write Multiple Registers */
-function buildWriteMultiple(slaveId: number, startAddr: number, values: number[]): Uint8Array {
-  const numRegs = values.length;
-  const byteCount = numRegs * 2;
-  const frame = new Uint8Array(7 + byteCount);
-  frame[0] = slaveId;
-  frame[1] = 0x10;
-  frame[2] = (startAddr >> 8) & 0xff;
-  frame[3] = startAddr & 0xff;
-  frame[4] = (numRegs >> 8) & 0xff;
-  frame[5] = numRegs & 0xff;
-  frame[6] = byteCount;
-  for (let i = 0; i < numRegs; i++) {
-    frame[7 + i * 2] = (values[i] >> 8) & 0xff;
-    frame[8 + i * 2] = values[i] & 0xff;
-  }
-  return appendCRC(frame);
-}
-
-// ======================== Response parsers ========================
-
-function parseReadResponse(response: Uint8Array): number[] {
-  // [slaveId, 0x03, byteCount, data..., crcL, crcH]
-  if (!verifyCRC(response)) throw new Error('CRC校验失败');
-  if (response[1] & 0x80) throw new Error(`Modbus异常: 0x${response[2].toString(16)}`);
-  const byteCount = response[2];
-  const regs: number[] = [];
-  for (let i = 0; i < byteCount; i += 2) {
-    regs.push((response[3 + i] << 8) | response[4 + i]);
-  }
-  return regs;
-}
-
-// ======================== Float conversion ========================
-
-/** Convert 2 Modbus registers (Big-Endian word order) to IEEE 754 float */
-export function regsToInt32(hi: number, lo: number): number {
-  const val = (hi << 16) | lo;
-  return val > 0x7FFFFFFF ? val - 0x100000000 : val;
-}
-
-export function regsToFloat(high: number, low: number): number {
-  const buf = new ArrayBuffer(4);
-  const view = new DataView(buf);
-  view.setUint16(0, high, false); // Big-Endian
-  view.setUint16(2, low, false);
-  return view.getFloat32(0, false);
-}
-
-/** Convert int16 stored in uint16 register */
-export function regToInt16(value: number): number {
-  return value > 32767 ? value - 65536 : value;
-}
-
-/** Split IEEE 754 float into 2 Big-Endian word-ordered registers [high, low] */
-export function floatToRegs(v: number): [number, number] {
-  const buf = new ArrayBuffer(4);
-  const view = new DataView(buf);
-  view.setFloat32(0, v, false); // Big-Endian
-  return [view.getUint16(0, false), view.getUint16(2, false)];
-}
-
-// ======================== Register map ========================
+// ======================== Register Address Map ========================
 
 export const REG = {
   DEVICE_ID: 0x0000,
@@ -178,55 +52,46 @@ export const REG = {
   ALTITUDE_L: 0x004b,
   BARO_TEMP: 0x004c,
 
-  /* Magnetometer (0x004E - 0x0055) — float = 2 regs each, big-endian word order */
   MAG_X: 0x004e,
   MAG_Y: 0x0050,
   MAG_Z: 0x0052,
   MAG_TEMP: 0x0054,
 
-  /* ADC Calibration (0x0056 - 0x006B) — float = 2 regs each, big-endian word order */
   CAL_VOLT_GAIN: 0x0056,
   CAL_VOLT_OFF:  0x0058,
-  CAL_AN1_GAIN:  0x005a,
-  CAL_AN1_OFF:   0x005c,
-  CAL_AN2_GAIN:  0x005e,
-  CAL_AN2_OFF:   0x0060,
-  CAL_AN3_GAIN:  0x0062,
-  CAL_AN3_OFF:   0x0064,
-  CAL_AN4_GAIN:  0x0066,
-  CAL_AN4_OFF:   0x0068,
+  CAL_ANALOG1_GAIN: 0x005a,
+  CAL_ANALOG1_OFF:  0x005c,
+  CAL_ANALOG2_GAIN: 0x005e,
+  CAL_ANALOG2_OFF:  0x0060,
+  CAL_ANALOG3_GAIN: 0x0062,
+  CAL_ANALOG3_OFF:  0x0064,
+  CAL_ANALOG4_GAIN: 0x0066,
+  CAL_ANALOG4_OFF:  0x0068,
   CAL_CMD:       0x006a,
   CAL_STATUS:    0x006b,
 
-  GPIO_MODE0:    0x006c,
-  GPIO_MODE1:    0x006d,
-  GPIO_MODE2:    0x006e,
-  GPIO_MODE3:    0x006f,
-  GPIO_OUT0:     0x0070,
-  GPIO_OUT1:     0x0071,
-  GPIO_OUT2:     0x0072,
-  GPIO_OUT3:     0x0073,
-  GPIO_IN0:      0x0074,
-  GPIO_IN1:      0x0075,
-  GPIO_IN2:      0x0076,
-  GPIO_IN3:      0x0077,
+  GPIO_MODE0: 0x006c,
+  GPIO_MODE1: 0x006d,
+  GPIO_MODE2: 0x006e,
+  GPIO_MODE3: 0x006f,
+  GPIO_OUT0:  0x0070,
+  GPIO_OUT1:  0x0071,
+  GPIO_OUT2:  0x0072,
+  GPIO_OUT3:  0x0073,
+  GPIO_IN0:   0x0074,
+  GPIO_IN1:   0x0075,
+  GPIO_IN2:   0x0076,
+  GPIO_IN3:   0x0077,
 
-  IR_TX_CMD:     0x0078,
-  IR_TX_DATA:    0x0079,
-  IR_RX_STATUS:  0x007a,
-  IR_RX_DATA:    0x007b,
-
-  /* IR timing parameters (0x007C-0x0083) */
+  IR_TX_CMD:  0x0078,
+  IR_TX_DATA: 0x0079,
+  IR_RX_STATUS: 0x007a,
+  IR_RX_DATA: 0x007b,
   IR_LEAD_LOW_LO:  0x007c,
   IR_LEAD_LOW_HI:  0x007d,
   IR_LEAD_HIGH_LO: 0x007e,
   IR_LEAD_HIGH_HI: 0x007f,
-  IR_BIT0_LO:      0x0080,
-  IR_BIT0_HI:      0x0081,
-  IR_BIT1_LO:      0x0082,
-  IR_BIT1_HI:      0x0083,
 
-  /* Kalman filter parameters (0x0086-0x009E) — float = 2 regs each, big-endian word order; aligned with firmware REG_KALMAN_* */
   KALMAN_Q_ROLL:    0x0086,
   KALMAN_R_ROLL:    0x0088,
   KALMAN_Q_PITCH:   0x008a,
@@ -239,23 +104,18 @@ export const REG = {
   KALMAN_R_GYRO_Y:  0x0098,
   KALMAN_Q_GYRO_Z:  0x009a,
   KALMAN_R_GYRO_Z:  0x009c,
-  KALMAN_CMD:       0x009e,
+  KALMAN_CMD: 0x009e,
 
-  /* Servo attitude compensation coefficients (0x00A0-0x00DF) — float = 2 regs each */
-  SERVO_COMP_BASE:   0x00a0,  // Base address for servo 1 (8 regs per servo: base + kRoll + kPitch + kYaw)
-  
-  /* Servo auto-compensation enable flags (0x00E0-0x00E7) */
-  SERVO_COMP_ENABLE: 0x00e0,  // Base address for enable flags (1 reg per servo)
-  
-  /* Helper constants for easier access */
-  SERVO_COMP_BASE_ANGLE: 0x00a0,  // Alias for SERVO_COMP_BASE
-  SERVO_COMP_ENABLE_0: 0x00e0,    // Alias for SERVO_COMP_ENABLE
-  
-  /* Calibration save command */
-  CMD_SAVE_CALIB: 0x009f,
+  SERVO_SAVE_CMD: 0x009f,   /* Write CAL_CMD_SAVE (0x5A5A) → deferred Flash save */
+  DBG_EN:         0x00e8,   /* Write 1=enable, 0=disable debug output on device */
+
+  SERVO_COMP_BASE: 0x00a0,
+  SERVO_COMP_ENABLE: 0x00e0,
+
+  SERVO_COMP_BASE_ANGLE: 0x00a0,
+  SERVO_COMP_ENABLE_0: 0x00e0,
 } as const;
 
-/** Calibration channel indices (match firmware CALIB_CH_*) */
 export const CAL_CH = {
   VOLTAGE: 0,
   ANALOG1: 1,
@@ -266,13 +126,103 @@ export const CAL_CH = {
 
 export const CAL_CH_NAMES = ['VOLTAGE', 'ANALOG1', 'ANALOG2', 'ANALOG3', 'ANALOG4'] as const;
 
-/** Calibration command register values (match firmware CALIB_CMD_*) */
 export const CAL_CMD_SAVE  = 0x5A5A;
 export const CAL_CMD_RESET = 0xA5A5;
 
-// ======================== Serial + Modbus class ========================
+// ======================== CRC16 ========================
+
+const CRC_TABLE = new Uint16Array(256).map((_, i) => {
+  let crc = i;
+  for (let j = 0; j < 8; j++) crc = crc & 1 ? 0xA001 ^ (crc >> 1) : crc >> 1;
+  return crc;
+});
+
+export function crc16(data: Uint8Array): number {
+  let crc = 0xFFFF;
+  for (const b of data) crc = CRC_TABLE[(crc ^ b) & 0xFF] ^ (crc >> 8);
+  return crc;
+}
+
+function appendCRC(frame: Uint8Array): Uint8Array {
+  const crc = crc16(frame);
+  const result = new Uint8Array(frame.length + 2);
+  result.set(frame);
+  result[frame.length] = crc & 0xFF;
+  result[frame.length + 1] = (crc >> 8) & 0xFF;
+  return result;
+}
+
+export function verifyCRC(response: Uint8Array): boolean {
+  if (response.length < 2) return false;
+  const receivedCRC = (response[response.length - 1] << 8) | response[response.length - 2];
+  const computedCRC = crc16(response.subarray(0, response.length - 2));
+  return receivedCRC === computedCRC;
+}
+
+// ======================== Frame builders ========================
+
+function buildReadHolding(slaveId: number, startAddr: number, numRegs: number): Uint8Array {
+  return appendCRC(new Uint8Array([slaveId, 0x03, startAddr >> 8, startAddr & 0xFF, numRegs >> 8, numRegs & 0xFF]));
+}
+
+function buildWriteSingle(slaveId: number, addr: number, value: number): Uint8Array {
+  return appendCRC(new Uint8Array([slaveId, 0x06, addr >> 8, addr & 0xFF, value >> 8, value & 0xFF]));
+}
+
+function buildWriteMultiple(slaveId: number, startAddr: number, values: number[]): Uint8Array {
+  const byteCount = values.length * 2;
+  const frame = new Uint8Array(7 + byteCount);
+  frame[0] = slaveId;
+  frame[1] = 0x10;
+  frame[2] = startAddr >> 8;
+  frame[3] = startAddr & 0xFF;
+  frame[4] = values.length >> 8;
+  frame[5] = values.length & 0xFF;
+  frame[6] = byteCount;
+  for (let i = 0; i < values.length; i++) {
+    frame[7 + i * 2] = values[i] >> 8;
+    frame[8 + i * 2] = values[i] & 0xFF;
+  }
+  return appendCRC(frame);
+}
+
+// ======================== Response parser ========================
+
+function parseReadResponse(response: Uint8Array): number[] {
+  if (!verifyCRC(response)) throw new Error('响应CRC校验失败');
+  if (response[1] & 0x80) throw new Error(`读取异常: 0x${response[2].toString(16)}`);
+  const byteCount = response[2];
+  if (response.length < 3 + byteCount + 2) throw new Error('响应长度不足');
+  const values: number[] = [];
+  for (let i = 0; i < byteCount; i += 2) {
+    values.push((response[3 + i] << 8) | response[4 + i]);
+  }
+  return values;
+}
+
+// ======================== Float conversion helpers ========================
+
+export function floatToRegs(v: number): [number, number] {
+  const buf = new ArrayBuffer(4);
+  const view = new DataView(buf);
+  view.setFloat32(0, v, false);
+  return [view.getUint16(0, false), view.getUint16(2, false)];
+}
+
+export function regsToFloat(hi: number, lo: number): number {
+  const bytes = new Uint8Array(4);
+  bytes[0] = (hi >> 8) & 0xFF; bytes[1] = hi & 0xFF;
+  bytes[2] = (lo >> 8) & 0xFF; bytes[3] = lo & 0xFF;
+  return new DataView(bytes.buffer).getFloat32(0, false);
+}
+
+export function regsToInt32(hi: number, lo: number): number { return (hi << 16) | lo; }
+export function regToInt16(v: number): number { return v > 0x7FFF ? v - 0x10000 : v; }
+
+// ======================== Types ========================
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type QueuePriority = 'normal' | 'high';
 
 export interface ModbusLog {
   time: string;
@@ -299,6 +249,18 @@ export interface IRData {
   rxData: number;
 }
 
+type QueueItemType = 'read' | 'write';
+
+interface QueueItem {
+  fn: () => Promise<any>;
+  resolve: (v: any) => void;
+  reject: (e: any) => void;
+  priority: QueuePriority;
+  type: QueueItemType;
+}
+
+// ======================== ModbusClient ========================
+
 export class ModbusClient {
   private port: SerialPort | null = null;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
@@ -319,35 +281,74 @@ export class ModbusClient {
   private disconnectHandler: (() => void) | null = null;
   private serialConnectHandler: ((ev: Event) => void) | null = null;
 
-  /* Failure threshold and backoff schedule */
   private static readonly FAIL_THRESHOLD = 3;
   private static readonly MAX_ATTEMPTS = 10;
   private static readonly BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000];
 
-  /* ---- Transaction queue (Modbus is half-duplex, one at a time) ---- */
-  private _queue: Array<{ fn: () => Promise<any>; resolve: (v: any) => void; reject: (e: any) => void }> = [];
+  /* ---- Transaction queue ---- */
+  private _queue: QueueItem[] = [];
   private _busy = false;
+  private _pendingWrites = 0;
+  private _holdCount = 0;
 
-  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  /**
+   * True when write transactions are in-flight or the client has been
+   * manually held (via {@link hold} / {@link release}).
+   *
+   * Polling code calls this before starting a cycle AND between every
+   * read-group inside a cycle so writes are never delayed by reads.
+   */
+  hasPendingWrites(): boolean {
+    return this._pendingWrites > 0 || this._holdCount > 0;
+  }
+
+  /** Prevent polling from sending any Modbus requests. */
+  hold(): void {
+    this._holdCount++;
+  }
+
+  /** Re-allow polling. MUST be paired with a previous {@link hold} call. */
+  release(): void {
+    if (this._holdCount > 0) this._holdCount--;
+  }
+
+  private enqueue<T>(fn: () => Promise<T>, priority: QueuePriority = 'normal', type: QueueItemType = 'read'): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      this._queue.push({ fn, resolve, reject });
+      if (priority === 'high') {
+        this._queue.unshift({ fn, resolve, reject, priority, type });
+      } else {
+        this._queue.push({ fn, resolve, reject, priority, type });
+      }
       this._processQueue();
     });
   }
 
   private async _processQueue() {
     if (this._busy || this._queue.length === 0) return;
+
+    // If the front item is a read and writes are pending, look for a write
+    // deeper in the queue. Writes (especially Flash saves) must execute ASAP;
+    // reads sent while the slave is busy will time out and trigger reconnect.
+    if (this._queue[0].type === 'read' && this.hasPendingWrites()) {
+      const wi = this._queue.findIndex(i => i.type === 'write');
+      if (wi > 0) {
+        const [write] = this._queue.splice(wi, 1);
+        this._queue.unshift(write);
+      } else {
+        return;  // no writes to run, wait for the next enqueue event
+      }
+    }
+
     this._busy = true;
-    const { fn, resolve, reject } = this._queue.shift()!;
+    const item = this._queue.shift()!;
     try {
-      const result = await fn();
+      const result = await item.fn();
       this.noteCommResult(true);
-      resolve(result);
+      item.resolve(result);
     } catch (e) {
       this.noteCommResult(false);
-      reject(e);
+      item.reject(e);
     }
-    /* Inter-frame gap: 15ms (> 3.5 char times at 9600 baud ≈ 4ms) */
     await new Promise(r => setTimeout(r, 15));
     this._busy = false;
     this._processQueue();
@@ -358,7 +359,6 @@ export class ModbusClient {
 
   onStateChange(cb: (s: ConnectionState) => void) { this._onStateChange = cb; }
   onLog(cb: (logs: ModbusLog[]) => void) { this._onLog = cb; }
-  /** Reconnect progress callback; emits null when reconnect finishes/aborts */
   onReconnect(cb: (info: ReconnectInfo | null) => void) { this._onReconnect = cb; }
 
   clearLog() {
@@ -407,7 +407,7 @@ export class ModbusClient {
   }
 
   async disconnect() {
-    this.userDisconnected = true;   /* 用户主动断开，禁止自动重连 */
+    this.userDisconnected = true;
     this.reconnecting = false;
     this.detachSerialConnectListener();
     this.detachDisconnectListener();
@@ -420,16 +420,14 @@ export class ModbusClient {
     this.addLog('TX', '已断开');
   }
 
-  /** Release locks and close port, tolerant to errors */
   private async softClose() {
-    try { this.reader?.releaseLock(); } catch { /* ignore */ }
-    try { this.writer?.releaseLock(); } catch { /* ignore */ }
+    try { this.reader?.releaseLock(); } catch { }
+    try { this.writer?.releaseLock(); } catch { }
     this.reader = null;
     this.writer = null;
-    try { await this.port?.close(); } catch { /* ignore */ }
+    try { await this.port?.close(); } catch { }
   }
 
-  /** Clear all pending requests in the queue (reject them with reason) */
   private flushQueue(reason: string) {
     const pending = this._queue.splice(0);
     for (const item of pending) {
@@ -445,7 +443,6 @@ export class ModbusClient {
       this.flushQueue('设备已断开');
       this.tryReconnect('physical');
     };
-    /* SerialPort inherits EventTarget */
     (this.port as unknown as EventTarget).addEventListener('disconnect', this.disconnectHandler);
   }
 
@@ -466,8 +463,6 @@ export class ModbusClient {
       if (info.usbVendorId === this.lastPortInfo.usbVendorId &&
           info.usbProductId === this.lastPortInfo.usbProductId) {
         this.addLog('RX', '检测到设备重新插入');
-        /* The backoff loop picks this up via getPorts() on its next iteration;
-           no need to bypass the loop — keeps state machine simple. */
       }
     };
     navigator.serial.addEventListener('connect', this.serialConnectHandler);
@@ -480,7 +475,6 @@ export class ModbusClient {
     this.serialConnectHandler = null;
   }
 
-  /** Auto-reconnect driver. Idempotent: duplicate calls are no-op. */
   private async tryReconnect(reason: 'physical' | 'comm-error') {
     if (this.reconnecting || this.userDisconnected) return;
     this.reconnecting = true;
@@ -489,15 +483,11 @@ export class ModbusClient {
     const MAX = ModbusClient.MAX_ATTEMPTS;
     for (let i = 0; i < MAX; i++) {
       if (this.userDisconnected) break;
-
       const attempt = i + 1;
       this._onReconnect?.({ attempt, max: MAX, reason });
       this.addLog('TX', `重连尝试 ${attempt}/${MAX} (${reason})`);
-
-      /* Release and re-open */
       await this.softClose();
       await new Promise(r => setTimeout(r, 300));
-
       if (await this.attemptOpen()) {
         this.reconnecting = false;
         this.consecutiveFailures = 0;
@@ -506,14 +496,10 @@ export class ModbusClient {
         this.addLog('RX', `重连成功 (第 ${attempt} 次)`);
         return;
       }
-
-      /* Wait before next attempt with backoff */
       if (i < MAX - 1) {
         await new Promise(r => setTimeout(r, ModbusClient.BACKOFF_MS[i]));
       }
     }
-
-    /* All attempts exhausted */
     this.reconnecting = false;
     this._onReconnect?.(null);
     this.port = null;
@@ -521,12 +507,9 @@ export class ModbusClient {
     this.addLog('ERR', `重连 ${MAX} 次失败，请手动重新连接`);
   }
 
-  /** Try to open either the existing port (soft) or a re-enumerated port (hard). */
   private async attemptOpen(): Promise<boolean> {
     const baud = this.lastBaudRate;
     const opts: SerialOptions = { baudRate: baud, dataBits: 8 as const, stopBits: 1 as const, parity: 'none' };
-
-    /* Soft reconnect: existing port object still valid (MCU reset but USB-UART alive) */
     if (this.port) {
       try {
         await this.port.open(opts);
@@ -534,12 +517,8 @@ export class ModbusClient {
         this.reader = this.port.readable!.getReader();
         this.attachDisconnectListener();
         return true;
-      } catch {
-        /* Fall through to hard reconnect */
-      }
+      } catch { }
     }
-
-    /* Hard reconnect: device was re-enumerated, find it via authorized ports */
     try {
       const ports = await navigator.serial.getPorts();
       let target: SerialPort | undefined;
@@ -552,7 +531,6 @@ export class ModbusClient {
       }
       if (!target && ports.length === 1) target = ports[0];
       if (!target) return false;
-
       await target.open(opts);
       this.port = target;
       this.writer = target.writable!.getWriter();
@@ -564,12 +542,8 @@ export class ModbusClient {
     }
   }
 
-  /** Called by transact() on success/failure to drive auto-reconnect */
   private noteCommResult(ok: boolean) {
-    if (ok) {
-      this.consecutiveFailures = 0;
-      return;
-    }
+    if (ok) { this.consecutiveFailures = 0; return; }
     if (this.reconnecting || this.userDisconnected) return;
     this.consecutiveFailures++;
     if (this.consecutiveFailures >= ModbusClient.FAIL_THRESHOLD) {
@@ -579,29 +553,21 @@ export class ModbusClient {
     }
   }
 
-  /** Send frame and collect response with timeout (must be called inside queue) */
   private async transact(frame: Uint8Array, expectedLen: number, timeoutMs = 500): Promise<Uint8Array> {
     if (!this.writer || !this.reader) throw new Error('未连接');
-
     this.addLog('TX', this.toHex(frame));
     await this.writer.write(frame);
-
     const buffer = new Uint8Array(256);
     let pos = 0;
     const deadline = Date.now() + timeoutMs;
-
     while (pos < expectedLen && Date.now() < deadline) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
-
-      /* Use a timeout promise; if it wins the race, we stop reading */
       let timer: ReturnType<typeof setTimeout>;
       const timeout = new Promise<null>(res => { timer = setTimeout(() => res(null), remaining); });
       const read = this.reader.read().then(r => { clearTimeout(timer); return r; });
-
       const result = await Promise.race([read, timeout]);
-
-      if (result === null) break; // timeout
+      if (result === null) break;
       if (result.value) {
         const chunk = result.value;
         const copyLen = Math.min(chunk.length, 256 - pos);
@@ -610,174 +576,110 @@ export class ModbusClient {
       }
       if (result.done) break;
     }
-
     if (pos === 0) throw new Error('通信超时 - 无响应');
     const response = buffer.slice(0, pos);
     this.addLog('RX', this.toHex(response));
     return response;
   }
 
-  /** Read holding registers (FC03) — queued */
-  async readHoldingRegisters(startAddr: number, numRegs: number): Promise<number[]> {
+  async readHoldingRegisters(startAddr: number, numRegs: number, priority: QueuePriority = 'normal'): Promise<number[]> {
     return this.enqueue(async () => {
       const frame = buildReadHolding(this.slaveId, startAddr, numRegs);
       const expectedLen = 5 + numRegs * 2;
       const response = await this.transact(frame, expectedLen);
       return parseReadResponse(response);
-    });
+    }, priority);
   }
 
-  /** Write single register (FC06) — queued */
-  async writeSingleRegister(addr: number, value: number): Promise<void> {
-    return this.enqueue(async () => {
-      const frame = buildWriteSingle(this.slaveId, addr, value);
-      const response = await this.transact(frame, 8);
-      if (!verifyCRC(response)) throw new Error('写入响应CRC校验失败');
-      if (response[1] & 0x80) throw new Error(`写入异常: 0x${response[2].toString(16)}`);
-    });
+  async writeSingleRegister(addr: number, value: number, priority: QueuePriority = 'normal'): Promise<void> {
+    this._pendingWrites++;
+    try {
+      return await this.enqueue(async () => {
+        const frame = buildWriteSingle(this.slaveId, addr, value);
+        const response = await this.transact(frame, 8);
+        if (!verifyCRC(response)) throw new Error('写入响应CRC校验失败');
+        if (response[1] & 0x80) throw new Error(`写入异常: 0x${response[2].toString(16)}`);
+      }, priority, 'write');
+    } finally {
+      this._pendingWrites--;
+    }
   }
 
-  /** Write multiple registers (FC16) — queued */
-  async writeMultipleRegisters(startAddr: number, values: number[]): Promise<void> {
-    return this.enqueue(async () => {
-      const frame = buildWriteMultiple(this.slaveId, startAddr, values);
-      const response = await this.transact(frame, 8);
-      if (!verifyCRC(response)) throw new Error('写入响应CRC校验失败');
-      if (response[1] & 0x80) throw new Error(`写入异常: 0x${response[2].toString(16)}`);
-    });
+  async writeMultipleRegisters(startAddr: number, values: number[], priority: QueuePriority = 'normal'): Promise<void> {
+    this._pendingWrites++;
+    try {
+      return await this.enqueue(async () => {
+        const frame = buildWriteMultiple(this.slaveId, startAddr, values);
+        const response = await this.transact(frame, 8);
+        if (!verifyCRC(response)) throw new Error('写入响应CRC校验失败');
+        if (response[1] & 0x80) throw new Error(`写入异常: 0x${response[2].toString(16)}`);
+      }, priority, 'write');
+    } finally {
+      this._pendingWrites--;
+    }
   }
 
-  /** Write a float value to two consecutive registers (big-endian IEEE 754) */
-  async writeFloatRegister(addr: number, value: number): Promise<void> {
-    // Convert float to 4 bytes (big-endian)
+  async writeFloatRegister(addr: number, value: number, priority: QueuePriority = 'normal'): Promise<void> {
     const buffer = new ArrayBuffer(4);
-    new DataView(buffer).setFloat32(0, value, false); // false = big-endian
+    new DataView(buffer).setFloat32(0, value, false);
     const bytes = new Uint8Array(buffer);
-    
-    // Split into two 16-bit registers (big-endian word order)
     const regHigh = (bytes[0] << 8) | bytes[1];
     const regLow = (bytes[2] << 8) | bytes[3];
-    
-    // Write both registers
-    await this.writeMultipleRegisters(addr, [regHigh, regLow]);
+    await this.writeMultipleRegisters(addr, [regHigh, regLow], priority);
   }
 
-  /** Read a single register */
-  async readSingleRegister(addr: number): Promise<number> {
-    const regs = await this.readHoldingRegisters(addr, 1);
+  async readSingleRegister(addr: number, priority: QueuePriority = 'normal'): Promise<number> {
+    const regs = await this.readHoldingRegisters(addr, 1, priority);
     return regs[0];
   }
 
-  /** Read a float value from two consecutive registers (big-endian IEEE 754) */
-  async readFloatRegister(addr: number): Promise<number> {
-    const regs = await this.readHoldingRegisters(addr, 2);
-    
-    // Combine two 16-bit registers into 4 bytes (big-endian)
+  async readFloatRegister(addr: number, priority: QueuePriority = 'normal'): Promise<number> {
+    const regs = await this.readHoldingRegisters(addr, 2, priority);
     const bytes = new Uint8Array(4);
-    bytes[0] = (regs[0] >> 8) & 0xFF;
-    bytes[1] = regs[0] & 0xFF;
-    bytes[2] = (regs[1] >> 8) & 0xFF;
-    bytes[3] = regs[1] & 0xFF;
-    
-    // Convert to float (big-endian)
+    bytes[0] = (regs[0] >> 8) & 0xFF; bytes[1] = regs[0] & 0xFF;
+    bytes[2] = (regs[1] >> 8) & 0xFF; bytes[3] = regs[1] & 0xFF;
     const buffer = new ArrayBuffer(4);
     new Uint8Array(buffer).set(bytes);
-    return new DataView(buffer).getFloat32(0, false); // false = big-endian
+    return new DataView(buffer).getFloat32(0, false);
   }
 
-  /** Read all system registers (0x0000-0x0005) */
-  async readSystem() {
-    const regs = await this.readHoldingRegisters(REG.DEVICE_ID, 6);
-    return {
-      deviceId: regs[0],
-      fwVersion: regs[1],
-      runMode: regs[2],
-      faultCode: regs[3],
-      sysTick: (regs[5] << 16) | regs[4],
-    };
+  async readSystem(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.DEVICE_ID, 6, priority);
+    return { deviceId: regs[0], fwVersion: regs[1], runMode: regs[2], faultCode: regs[3], sysTick: (regs[5] << 16) | regs[4] };
   }
 
-  /** Read all attitude float registers (0x0010-0x001B) */
-  async readAttitude() {
-    const regs = await this.readHoldingRegisters(REG.ROLL, 12);
-    return {
-      roll: regsToFloat(regs[0], regs[1]),
-      pitch: regsToFloat(regs[2], regs[3]),
-      yaw: regsToFloat(regs[4], regs[5]),
-      gyroX: regsToFloat(regs[6], regs[7]),
-      gyroY: regsToFloat(regs[8], regs[9]),
-      gyroZ: regsToFloat(regs[10], regs[11]),
-    };
+  async readAttitude(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.ROLL, 12, priority);
+    return { roll: regsToFloat(regs[0], regs[1]), pitch: regsToFloat(regs[2], regs[3]), yaw: regsToFloat(regs[4], regs[5]), gyroX: regsToFloat(regs[6], regs[7]), gyroY: regsToFloat(regs[8], regs[9]), gyroZ: regsToFloat(regs[10], regs[11]) };
   }
 
-  /** Read all PWM registers (0x0020-0x0029) */
-  async readPWM() {
-    const regs = await this.readHoldingRegisters(REG.SERVO1, 10);
-    return {
-      servos: regs.slice(0, 8),
-      leds: regs.slice(8, 10),
-    };
+  async readPWM(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.SERVO1, 10, priority);
+    return { servos: regs.slice(0, 8), leds: regs.slice(8, 10) };
   }
 
-  /** Read PWM frequency registers (0x0040-0x0047) */
-  async readPWMFreq() {
-    const regs = await this.readHoldingRegisters(REG.PWM_ARR_G1, 8);
-    return {
-      groups: [
-        { arr: regs[0], psc: regs[1] },
-        { arr: regs[2], psc: regs[3] },
-        { arr: regs[4], psc: regs[5] },
-        { arr: regs[6], psc: regs[7] },
-      ],
-    };
+  async readPWMFreq(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.PWM_ARR_G1, 8, priority);
+    return { groups: [{ arr: regs[0], psc: regs[1] }, { arr: regs[2], psc: regs[3] }, { arr: regs[4], psc: regs[5] }, { arr: regs[6], psc: regs[7] }] };
   }
 
-  /** Read all ADC registers (0x0030-0x0039) */
-  async readADC() {
-    const regs = await this.readHoldingRegisters(REG.TEMP1, 10);
-    return {
-      temps: [
-        regToInt16(regs[0]) / 10,
-        regToInt16(regs[1]) / 10,
-        regToInt16(regs[2]) / 10,
-        regToInt16(regs[3]) / 10,
-      ],
-      voltage: regToInt16(regs[4]) / 100,
-      adcRaw: regs.slice(5, 10),
-    };
+  async readADC(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.TEMP1, 10, priority);
+    return { temps: [regToInt16(regs[0]) / 10, regToInt16(regs[1]) / 10, regToInt16(regs[2]) / 10, regToInt16(regs[3]) / 10], voltage: regToInt16(regs[4]) / 100, adcRaw: regs.slice(5, 10) };
   }
 
-  /** Read barometer registers (0x0048-0x004D) */
-  async readBarometer() {
-    const regs = await this.readHoldingRegisters(REG.PRESSURE_H, 6);
-    return {
-      pressure: regsToInt32(regs[0], regs[1]),
-      altitude: regsToInt32(regs[2], regs[3]),
-      temperature: regsToFloat(regs[4], regs[5]),
-    };
+  async readBarometer(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.PRESSURE_H, 6, priority);
+    return { pressure: regsToInt32(regs[0], regs[1]), altitude: regsToInt32(regs[2], regs[3]), temperature: regsToFloat(regs[4], regs[5]) };
   }
 
-  /**
-   * Read magnetometer data (0x004E-0x0055)
-   * @returns { magX, magY, magZ, temperature } — magnetic field in uT, temperature in °C
-   */
-  async readMagnetometer() {
-    const regs = await this.readHoldingRegisters(REG.MAG_X, 8);
-    return {
-      magX: regsToFloat(regs[0], regs[1]),
-      magY: regsToFloat(regs[2], regs[3]),
-      magZ: regsToFloat(regs[4], regs[5]),
-      temperature: regsToFloat(regs[6], regs[7]),
-    };
+  async readMagnetometer(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.MAG_X, 8, priority);
+    return { magX: regsToFloat(regs[0], regs[1]), magY: regsToFloat(regs[2], regs[3]), magZ: regsToFloat(regs[4], regs[5]), temperature: regsToFloat(regs[6], regs[7]) };
   }
 
-  /**
-   * Read all calibration parameters (0x0050-0x0065)
-   * @returns { gains, offsets, status } — 5 channels in order: VOLTAGE, ANALOG1..4
-   */
-  async readCalibration() {
-    /* 20 regs for gain/offset pairs + CMD(1) + STATUS(1) = 22 regs */
-    const regs = await this.readHoldingRegisters(REG.CAL_VOLT_GAIN, 22);
+  async readCalibration(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.CAL_VOLT_GAIN, 22, priority);
     const gains: number[] = [];
     const offsets: number[] = [];
     for (let ch = 0; ch < 5; ch++) {
@@ -785,128 +687,80 @@ export class ModbusClient {
       gains.push(regsToFloat(regs[base], regs[base + 1]));
       offsets.push(regsToFloat(regs[base + 2], regs[base + 3]));
     }
-    return {
-      gains,
-      offsets,
-      status: regs[21], // REG.CAL_STATUS is the 22nd register (index 21)
-    };
+    return { gains, offsets, status: regs[21] };
   }
 
-  /** Read GPIO block (0x006C-0x0077) */
-  async readGPIO(): Promise<GPIOData> {
-    const regs = await this.readHoldingRegisters(REG.GPIO_MODE0, 12);
-    return {
-      modes: regs.slice(0, 4),
-      outputs: regs.slice(4, 8),
-      inputs: regs.slice(8, 12),
-    };
+  async readGPIO(priority?: QueuePriority): Promise<GPIOData> {
+    const regs = await this.readHoldingRegisters(REG.GPIO_MODE0, 12, priority);
+    return { modes: regs.slice(0, 4), outputs: regs.slice(4, 8), inputs: regs.slice(8, 12) };
   }
 
-  /** Set GPIO mode for one channel: 0=input, 1=output */
   async writeGPIOMode(ch: number, mode: number): Promise<void> {
     if (ch < 0 || ch > 3) throw new Error('GPIO 通道号越界');
-    await this.writeSingleRegister(REG.GPIO_MODE0 + ch, mode ? 1 : 0);
+    await this.writeSingleRegister(REG.GPIO_MODE0 + ch, mode ? 1 : 0, 'high');
   }
 
-  /** Set GPIO output level for one channel: 0=low, 1=high */
   async writeGPIOOutput(ch: number, value: number): Promise<void> {
     if (ch < 0 || ch > 3) throw new Error('GPIO 通道号越界');
-    await this.writeSingleRegister(REG.GPIO_OUT0 + ch, value ? 1 : 0);
+    await this.writeSingleRegister(REG.GPIO_OUT0 + ch, value ? 1 : 0, 'high');
   }
 
-  /** Read IR block (0x0078-0x007B) — TX_CMD/TX_DATA reused as edge counter / last pulse width while debugging RX */
-  async readIR(): Promise<IRData> {
-    const regs = await this.readHoldingRegisters(REG.IR_TX_CMD, 4);
-    return {
-      txCmd: regs[0],
-      txData: regs[1],
-      rxStatus: regs[2],
-      rxData: regs[3],
-    };
+  async readIR(priority?: QueuePriority): Promise<IRData> {
+    const regs = await this.readHoldingRegisters(REG.IR_TX_CMD, 4, priority);
+    return { txCmd: regs[0], txData: regs[1], rxStatus: regs[2], rxData: regs[3] };
   }
 
-  /** Write IR command/data to trigger NEC transmission */
   async writeIRTx(addr: number, cmd: number): Promise<void> {
-    await this.writeSingleRegister(REG.IR_TX_DATA, cmd & 0xFFFF);
-    await this.writeSingleRegister(REG.IR_TX_CMD, addr & 0xFFFF);
+    await this.writeSingleRegister(REG.IR_TX_DATA, cmd & 0xFFFF, 'high');
+    await this.writeSingleRegister(REG.IR_TX_CMD, addr & 0xFFFF, 'high');
   }
 
-  /** Read IR timing parameters (0x0076-0x007D) */
-  async readIRParams(): Promise<{
-    leadLowLo: number; leadLowHi: number;
-    leadHighLo: number; leadHighHi: number;
-    bit0Lo: number; bit0Hi: number;
-    bit1Lo: number; bit1Hi: number;
-  }> {
-    const regs = await this.readHoldingRegisters(REG.IR_LEAD_LOW_LO, 8);
-    return {
-      leadLowLo: regs[0], leadLowHi: regs[1],
-      leadHighLo: regs[2], leadHighHi: regs[3],
-      bit0Lo: regs[4], bit0Hi: regs[5],
-      bit1Lo: regs[6], bit1Hi: regs[7],
-    };
+  async readIRParams(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.IR_LEAD_LOW_LO, 8, priority);
+    return { leadLowLo: regs[0], leadLowHi: regs[1], leadHighLo: regs[2], leadHighHi: regs[3], bit0Lo: regs[4], bit0Hi: regs[5], bit1Lo: regs[6], bit1Hi: regs[7] };
   }
 
-  /** Write all IR timing parameters */
-  async writeIRParams(params: {
-    leadLowLo: number; leadLowHi: number;
-    leadHighLo: number; leadHighHi: number;
-    bit0Lo: number; bit0Hi: number;
-    bit1Lo: number; bit1Hi: number;
-  }): Promise<void> {
+  async writeIRParams(params: { leadLowLo: number; leadLowHi: number; leadHighLo: number; leadHighHi: number; bit0Lo: number; bit0Hi: number; bit1Lo: number; bit1Hi: number }): Promise<void> {
     await this.writeMultipleRegisters(REG.IR_LEAD_LOW_LO, [
       params.leadLowLo & 0xFFFF, params.leadLowHi & 0xFFFF,
       params.leadHighLo & 0xFFFF, params.leadHighHi & 0xFFFF,
       params.bit0Lo & 0xFFFF, params.bit0Hi & 0xFFFF,
       params.bit1Lo & 0xFFFF, params.bit1Hi & 0xFFFF,
-    ]);
+    ], 'high');
   }
 
-  /** Write gain for a single calibration channel (0..4) */
   async writeCalibGain(ch: number, gain: number): Promise<void> {
     if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
     const addr = REG.CAL_VOLT_GAIN + ch * 4;
     const [hi, lo] = floatToRegs(gain);
-    await this.writeMultipleRegisters(addr, [hi, lo]);
+    await this.writeMultipleRegisters(addr, [hi, lo], 'high');
   }
 
-  /** Write offset for a single calibration channel (0..4) */
   async writeCalibOffset(ch: number, offset: number): Promise<void> {
     if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
     const addr = REG.CAL_VOLT_GAIN + ch * 4 + 2;
     const [hi, lo] = floatToRegs(offset);
-    await this.writeMultipleRegisters(addr, [hi, lo]);
+    await this.writeMultipleRegisters(addr, [hi, lo], 'high');
   }
 
-  /** Write both gain and offset for a channel in one FC16 transaction */
   async writeCalibChannel(ch: number, gain: number, offset: number): Promise<void> {
     if (ch < 0 || ch > 4) throw new Error('校准通道号越界');
     const addr = REG.CAL_VOLT_GAIN + ch * 4;
     const [gh, gl] = floatToRegs(gain);
     const [oh, ol] = floatToRegs(offset);
-    await this.writeMultipleRegisters(addr, [gh, gl, oh, ol]);
+    await this.writeMultipleRegisters(addr, [gh, gl, oh, ol], 'high');
   }
 
-  /** Save current calibration RAM values to Flash (persistent) */
   async saveCalibToFlash(): Promise<void> {
-    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_SAVE);
+    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_SAVE, 'high');
   }
 
-  /** Reset all calibration channels to default (gain=1.0, offset=0.0). RAM only, not saved to Flash. */
   async resetCalibToDefault(): Promise<void> {
-    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_RESET);
+    await this.writeSingleRegister(REG.CAL_CMD, CAL_CMD_RESET, 'high');
   }
 
-  /** Read all Kalman filter parameters (0x007E-0x0089) */
-  async readKalmanParams(): Promise<{
-    qRoll: number; rRoll: number;
-    qPitch: number; rPitch: number;
-    qYaw: number; rYaw: number;
-    qGyroX: number; rGyroX: number;
-    qGyroY: number; rGyroY: number;
-    qGyroZ: number; rGyroZ: number;
-  }> {
-    const regs = await this.readHoldingRegisters(REG.KALMAN_Q_ROLL, 12);
+  async readKalmanParams(priority?: QueuePriority) {
+    const regs = await this.readHoldingRegisters(REG.KALMAN_Q_ROLL, 24, priority);
     return {
       qRoll: regsToFloat(regs[0], regs[1]), rRoll: regsToFloat(regs[2], regs[3]),
       qPitch: regsToFloat(regs[4], regs[5]), rPitch: regsToFloat(regs[6], regs[7]),
@@ -917,35 +771,80 @@ export class ModbusClient {
     };
   }
 
-  /** Write a single Kalman Q or R parameter */
   async writeKalmanParam(addr: number, value: number): Promise<void> {
     const [hi, lo] = floatToRegs(value);
-    await this.writeMultipleRegisters(addr, [hi, lo]);
+    await this.writeMultipleRegisters(addr, [hi, lo], 'high');
   }
 
-  /** Write all Kalman filter parameters in one FC16 transaction */
-  async writeKalmanParams(params: {
-    qRoll: number; rRoll: number;
-    qPitch: number; rPitch: number;
-    qYaw: number; rYaw: number;
-    qGyroX: number; rGyroX: number;
-    qGyroY: number; rGyroY: number;
-    qGyroZ: number; rGyroZ: number;
-  }): Promise<void> {
+  async writeKalmanParams(params: { qRoll: number; rRoll: number; qPitch: number; rPitch: number; qYaw: number; rYaw: number; qGyroX: number; rGyroX: number; qGyroY: number; rGyroY: number; qGyroZ: number; rGyroZ: number }): Promise<void> {
     const toRegs = (v: number) => { const [hi, lo] = floatToRegs(v); return [hi, lo]; };
-    const allRegs = [
+    await this.writeMultipleRegisters(REG.KALMAN_Q_ROLL, [
       ...toRegs(params.qRoll), ...toRegs(params.rRoll),
       ...toRegs(params.qPitch), ...toRegs(params.rPitch),
       ...toRegs(params.qYaw), ...toRegs(params.rYaw),
       ...toRegs(params.qGyroX), ...toRegs(params.rGyroX),
       ...toRegs(params.qGyroY), ...toRegs(params.rGyroY),
       ...toRegs(params.qGyroZ), ...toRegs(params.rGyroZ),
-    ];
-    await this.writeMultipleRegisters(REG.KALMAN_Q_ROLL, allRegs);
+    ], 'high');
   }
 
-  /** Send Kalman filter reset command */
   async resetKalmanFilter(): Promise<void> {
-    await this.writeSingleRegister(REG.KALMAN_CMD, 1);
+    await this.writeSingleRegister(REG.KALMAN_CMD, 0x5A5A, 'high');
+  }
+
+  /** Read servo compensation coefficient for a specific servo channel */
+  async readServoCompCoeff(servoIdx: number, priority?: QueuePriority) {
+    const baseAddr = REG.SERVO_COMP_BASE + servoIdx * 8;
+    const regs = await this.readHoldingRegisters(baseAddr, 8, priority);
+    return {
+      baseAngle: regsToFloat(regs[0], regs[1]),
+      kRoll: regsToFloat(regs[2], regs[3]),
+      kPitch: regsToFloat(regs[4], regs[5]),
+      kYaw: regsToFloat(regs[6], regs[7]),
+    };
+  }
+
+  /** Write servo compensation coefficient for a specific servo channel */
+  async writeServoCompCoeff(servoIdx: number, coeff: { baseAngle: number; kRoll: number; kPitch: number; kYaw: number }): Promise<void> {
+    const baseAddr = REG.SERVO_COMP_BASE + servoIdx * 8;
+    const [bh, bl] = floatToRegs(coeff.baseAngle);
+    const [rh, rl] = floatToRegs(coeff.kRoll);
+    const [ph, pl] = floatToRegs(coeff.kPitch);
+    const [yh, yl] = floatToRegs(coeff.kYaw);
+    await this.writeMultipleRegisters(baseAddr, [bh, bl, rh, rl, ph, pl, yh, yl], 'high');
+  }
+
+  /** Read servo compensation enable flag */
+  async readServoCompEnable(servoIdx: number, priority?: QueuePriority): Promise<boolean> {
+    const val = await this.readSingleRegister(REG.SERVO_COMP_ENABLE + servoIdx, priority);
+    return val !== 0;
+  }
+
+  /** Write servo compensation enable flag */
+  async writeServoCompEnable(servoIdx: number, enabled: boolean): Promise<void> {
+    await this.writeSingleRegister(REG.SERVO_COMP_ENABLE + servoIdx, enabled ? 1 : 0, 'high');
+  }
+
+  /** Read all servo compensation coefficients (8 servos) */
+  async readAllServoComp(priority?: QueuePriority) {
+    const channels: Array<{ baseAngle: number; kRoll: number; kPitch: number; kYaw: number }> = [];
+    for (let i = 0; i < 8; i++) {
+      channels.push(await this.readServoCompCoeff(i, priority));
+    }
+    return channels;
+  }
+
+  /** Read all servo compensation enable flags */
+  async readAllServoCompEnable(priority?: QueuePriority): Promise<boolean[]> {
+    const enables: boolean[] = [];
+    for (let i = 0; i < 8; i++) {
+      enables.push(await this.readServoCompEnable(i, priority));
+    }
+    return enables;
+  }
+
+  /** Save all servo compensation parameters to Flash */
+  async saveServoCompToFlash(): Promise<void> {
+    await this.writeSingleRegister(REG.SERVO_SAVE_CMD, CAL_CMD_SAVE, 'high');
   }
 }

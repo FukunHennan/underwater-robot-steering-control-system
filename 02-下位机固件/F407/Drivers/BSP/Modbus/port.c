@@ -59,57 +59,30 @@ void vMBPortClose(void)
     vMBPortTimersClose();
 }
 
+/* TX frame buffer - bytes accumulated here; DMA-sent as one frame */
+#define MB_TX_BUF_SIZE 256
+static uint8_t  s_tx_buf[MB_TX_BUF_SIZE];
+static uint16_t s_tx_len = 0;
+
 BOOL xMBPortSerialInit(UCHAR ucPort, ULONG ulBaudRate, UCHAR ucDataBits, eMBParity eParity, UCHAR ucStopBits)
 {
     ( void )ucPort;
     ( void )ucDataBits;
+    ( void )eParity;
+    ( void )ucStopBits;
 
-    huart = &g_uart2_handle;
-    huart->Instance = USART2;
-    huart->Init.BaudRate = ulBaudRate;
-    if (eParity != MB_PAR_NONE) {
-        huart->Init.WordLength = UART_WORDLENGTH_9B;
-    } else {
-        huart->Init.WordLength = UART_WORDLENGTH_8B;
-    }
-    huart->Init.StopBits = ( ucStopBits == 2U ) ? UART_STOPBITS_2 : UART_STOPBITS_1;
+    /* Initialize USART2 hardware: GPIO, DMA streams, NVIC, baud rate.
+     * Also starts DMA RX and enables IDLE interrupt.
+     * Safe to call multiple times (e.g. after eMBDisable→eMBInit→eMBEnable
+     * for deferred Flash saves). */
+    usart2_init(ulBaudRate);
 
-    switch (eParity) {
-        case MB_PAR_NONE:
-            huart->Init.Parity = UART_PARITY_NONE;
-            break;
-        case MB_PAR_ODD:
-            huart->Init.Parity = UART_PARITY_ODD;
-            break;
-        case MB_PAR_EVEN:
-            huart->Init.Parity = UART_PARITY_EVEN;
-            break;
-        default:
-            return false;
-    }
-
-    huart->Init.Mode = UART_MODE_TX_RX;
-    huart->Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    huart->Init.OverSampling = UART_OVERSAMPLING_16;
-
-    xRxEnabled = FALSE;
-    xTxEnabled = FALSE;
+    huart             = &g_uart2_handle;
+    xRxEnabled        = FALSE;
+    xTxEnabled        = FALSE;
     usConsumedRxCount = 0;
-    g_usart2_rx_sta = 0;
-
-    if( HAL_UART_Init( huart ) != HAL_OK )
-    {
-        return FALSE;
-    }
-
-    /* Enable RXNE interrupt directly (bypass HAL Receive_IT to avoid 9-bit write issues) */
-    __HAL_UART_ENABLE_IT( huart, UART_IT_RXNE );
-
-    printf("[PORT] UART2 init: Baud=%lu WL=0x%lX Par=0x%lX Stop=0x%lX\r\n",
-           huart->Init.BaudRate, huart->Init.WordLength,
-           huart->Init.Parity, huart->Init.StopBits);
-    printf("[PORT] CR1=0x%08lX CR2=0x%08lX CR3=0x%08lX\r\n",
-           huart->Instance->CR1, huart->Instance->CR2, huart->Instance->CR3);
+    g_usart2_rx_sta   = 0;
+    s_tx_len          = 0;
     return TRUE;
 }
 
@@ -123,8 +96,11 @@ void vMBPortSerialClose(void)
 
 BOOL xMBPortSerialPutByte(CHAR cByte)
 {
-    printf("[TX]0x%02X ", ( uint8_t )cByte);
-    return ( HAL_UART_Transmit( huart, ( uint8_t * )&cByte, 1, HAL_MAX_DELAY ) == HAL_OK ) ? TRUE : FALSE;
+    /* Buffer the byte; entire frame is DMA-sent when pump loop ends */
+    if (s_tx_len < MB_TX_BUF_SIZE) {
+        s_tx_buf[s_tx_len++] = (uint8_t)cByte;
+    }
+    return TRUE;
 }
 
 BOOL xMBPortSerialGetByte(CHAR *pucByte)
@@ -138,18 +114,26 @@ void vMBPortSerialEnable(BOOL xRxEnable, BOOL xTxEnable)
     xRxEnabled = xRxEnable;
     xTxEnabled = xTxEnable;
 
-    if( xTxEnabled == TRUE )
+    if (xTxEnabled == TRUE)
     {
-        while( xTxEnabled == TRUE )
+        /* Pump all frame bytes into s_tx_buf via xMBPortSerialPutByte */
+        s_tx_len = 0;
+        while (xTxEnabled == TRUE)
         {
-            if( pxMBFrameCBTransmitterEmpty != NULL )
-            {
-                ( void )pxMBFrameCBTransmitterEmpty();
-            }
+            if (pxMBFrameCBTransmitterEmpty != NULL)
+                (void)pxMBFrameCBTransmitterEmpty();
             else
-            {
                 xTxEnabled = FALSE;
-            }
+        }
+
+        /* Send the complete frame in one blocking call.
+         * HAL_UART_Transmit waits for TC (shift register empty), so the
+         * master sees a clean frame with no TC-flag race condition.
+         * At 9600 baud a 12-byte response takes ~12 ms - acceptable. */
+        if (s_tx_len > 0)
+        {
+            HAL_UART_Transmit(huart, s_tx_buf, s_tx_len, 100);
+            s_tx_len = 0;
         }
     }
 }
@@ -170,65 +154,44 @@ BOOL xMBPortEventPost(eMBEventType eEvent)
 
 BOOL xMBPortEventGet(eMBEventType *eEvent)
 {
-    USHORT rxCount = g_usart2_rx_sta;
-
-    /* Log if new data arrived in buffer */
-    if( rxCount > usConsumedRxCount )
+    while (xRxEnabled == TRUE && usConsumedRxCount < g_usart2_rx_sta)
     {
-        printf("[BUF] %d bytes pending (consumed=%d)\r\n",
-               rxCount - usConsumedRxCount, usConsumedRxCount);
+        cLastByte = (CHAR)g_usart2_rx_buf[usConsumedRxCount++];
+        if (pxMBFrameCBByteReceived != NULL)
+            (void)pxMBFrameCBByteReceived();
     }
 
-    while( xRxEnabled == TRUE && usConsumedRxCount < g_usart2_rx_sta )
-    {
-        cLastByte = ( CHAR )g_usart2_rx_buf[usConsumedRxCount++];
-        printf("[RX]0x%02X ", ( uint8_t )cLastByte);
-        if( pxMBFrameCBByteReceived != NULL )
-        {
-            ( void )pxMBFrameCBByteReceived();
-        }
-    }
-
-    if( usConsumedRxCount >= g_usart2_rx_sta )
+    if (usConsumedRxCount >= g_usart2_rx_sta)
     {
         usConsumedRxCount = 0;
-        g_usart2_rx_sta = 0;
+        g_usart2_rx_sta   = 0;
     }
 
-    if( xTimerEnabled == TRUE )
+    if (xTimerEnabled == TRUE)
     {
         ULONG ulElapsed = HAL_GetTick() - ulTimerStartTick;
-        if( ulElapsed >= ulTimerTimeoutMs )
+        if (ulElapsed >= ulTimerTimeoutMs)
         {
             xTimerEnabled = FALSE;
-            printf("\r\n[TMR]T35 expired (%lums)\r\n", ulElapsed);
-            if( pxMBPortCBTimerExpired != NULL )
-            {
-                ( void )pxMBPortCBTimerExpired();
-            }
+            if (pxMBPortCBTimerExpired != NULL)
+                (void)pxMBPortCBTimerExpired();
         }
     }
 
-    if( xEventInQueue == TRUE )
+    if (xEventInQueue == TRUE)
     {
-        *eEvent = eQueuedEvent;
+        *eEvent    = eQueuedEvent;
         xEventInQueue = FALSE;
-        printf("[EVT] event=%d\r\n", ( int )*eEvent);
         return TRUE;
     }
-
     return FALSE;
 }
 
 BOOL xMBPortTimersInit(USHORT usTimeOut50us)
 {
-    ulTimerTimeoutMs = ( ( ULONG )usTimeOut50us * 50UL + 999UL ) / 1000UL;
-    if( ulTimerTimeoutMs == 0UL )
-    {
-        ulTimerTimeoutMs = 1UL;
-    }
+    ulTimerTimeoutMs = ((ULONG)usTimeOut50us * 50UL + 999UL) / 1000UL;
+    if (ulTimerTimeoutMs == 0UL) ulTimerTimeoutMs = 1UL;
     xTimerEnabled = FALSE;
-    printf("[PORT] Timer init: T35=%lu ms (raw=%u x50us)\r\n", ulTimerTimeoutMs, usTimeOut50us);
     return TRUE;
 }
 

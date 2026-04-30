@@ -18,6 +18,7 @@
  */
 
 #include "modbus.h"
+#include "servo_comp.h"
 #include "mb.h"
 #include "mbport.h"
 #include "usart.h"
@@ -29,6 +30,10 @@
 #include "kalman.h"
 #include "atk_ms901m.h"
 #include <string.h>
+
+/* Debug output – disabled by default; enable via REG_DBG_EN or USART1 "DBG 1" */
+volatile uint8_t g_debug_en = 0;
+#define DBG(fmt, ...) do { if (g_debug_en) printf(fmt, ##__VA_ARGS__); } while(0)
 
 /* Forward declaration for internal helper */
 static void modbus_sync_calib_to_regs(void);
@@ -43,7 +48,8 @@ static USHORT g_modbus_registers[REG_HOLDING_MAX];
 /* Pending calibration command - processed outside eMBPoll() to avoid
  * blocking the Modbus response (Flash sector erase takes ~1-3 s which
  * would cause the master to time out and see a stale frame with bad CRC). */
-static volatile uint16_t g_pending_calib_cmd = 0;
+static volatile uint16_t g_pending_calib_cmd  = 0;
+static volatile uint8_t  g_pending_servo_save = 0;
 
 /* IR receive (DI2 = PE4, NEC protocol) */
 #define IR_RX_GPIO_PORT              GPIOE
@@ -393,11 +399,13 @@ static BOOL is_reg_writable(USHORT addr)
     if (addr >= REG_IR_TX_CMD && addr <= REG_IR_TX_DATA) return TRUE;
     if (addr >= REG_IR_LEAD_LOW_LO && addr <= REG_IR_BIT1_HI) return TRUE;
     if (addr >= REG_KALMAN_Q_ROLL && addr <= REG_KALMAN_CMD) return TRUE;
-    
-    /* Servo compensation coefficients */
+    /* Servo compensation coefficients and enable flags */
     if (addr >= REG_SERVO1_BASE && addr <= REG_SERVO8_K_YAW) return TRUE;
     if (addr >= REG_SERVO1_AUTO_EN && addr <= REG_SERVO8_AUTO_EN) return TRUE;
-    
+    /* Servo comp Flash save command */
+    if (addr == REG_SERVO_SAVE_CMD) return TRUE;
+    /* Debug enable control */
+    if (addr == REG_DBG_EN) return TRUE;
     return FALSE;
 }
 
@@ -505,16 +513,47 @@ static void apply_register(USHORT addr)
         {
             kalman_reset_all();
             modbus_sync_kalman_to_regs();
-            printf("[KALMAN] Reset all filters\r\n");
+            DBG("[KALMAN] reset\r\n");
         }
         g_modbus_registers[REG_KALMAN_CMD] = 0;
+    }
+    else if (addr == REG_SERVO_SAVE_CMD)
+    {
+        uint16_t cmd = g_modbus_registers[REG_SERVO_SAVE_CMD];
+        if (cmd == SERVO_COMP_CMD_SAVE)
+        {
+            g_pending_servo_save = 1;
+        }
+        g_modbus_registers[REG_SERVO_SAVE_CMD] = 0;
+    }
+    else if (addr == REG_DBG_EN)
+    {
+        g_debug_en = (g_modbus_registers[REG_DBG_EN] != 0) ? 1u : 0u;
     }
 }
 
 /**
+ * @brief  Deferred servo comp Flash save – must run outside eMBRegHoldingCB.
+ */
+static void modbus_process_pending_servo_save(void)
+{
+    if (!g_pending_servo_save) return;
+    g_pending_servo_save = 0;
+
+    eMBDisable();
+    HAL_Delay(10);
+
+    HAL_StatusTypeDef st = servo_comp_save(g_modbus_registers);
+    g_modbus_registers[REG_CAL_STATUS] = (st == HAL_OK) ? CALIB_STATUS_OK : CALIB_STATUS_ERROR;
+    DBG("[SCOMP] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
+
+    eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
+    eMBEnable();
+}
+
+/**
  * @brief  Execute any pending calibration command deferred from
- *         eMBRegHoldingCB. Called from main loop after eMBPoll() returns,
- *         which guarantees the Modbus response has already been sent.
+ *         eMBRegHoldingCB. Called from main loop after eMBPoll() returns.
  */
 static void modbus_process_pending_calib(void)
 {
@@ -530,12 +569,10 @@ static void modbus_process_pending_calib(void)
         eMBDisable();
         HAL_Delay(10);
 
-        /* 2) 执行 Flash 擦写 (Sector 2, 约 300ms) */
         st = calib_save_to_flash();
         g_modbus_registers[REG_CAL_STATUS] = (st == HAL_OK) ? CALIB_STATUS_OK : CALIB_STATUS_ERROR;
-        printf("[CALIB] save_to_flash (deferred): %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
+        DBG("[CALIB] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
 
-        /* 3) 重建 Modbus 协议栈 (清 RX 缓冲 + T3.5 定时器复位) */
         eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
         eMBEnable();
     }
@@ -544,7 +581,7 @@ static void modbus_process_pending_calib(void)
         calib_reset_default();
         modbus_sync_calib_to_regs();
         g_modbus_registers[REG_CAL_STATUS] = CALIB_STATUS_OK;
-        printf("[CALIB] reset to default (deferred)\r\n");
+        DBG("[CALIB] reset\r\n");
     }
 }
 
@@ -697,15 +734,14 @@ void modbus_init(void)
         g_modbus_registers[REG_SERVO1_AUTO_EN + i] = 0;
     }
 
+    /* Load servo compensation parameters saved to Flash */
+    servo_comp_init();
+    servo_comp_apply(g_modbus_registers);
+
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
-    printf("[MODBUS] eMBInit result: %d\r\n", eStatus);
-
     eStatus = eMBEnable();
-    printf("[MODBUS] eMBEnable result: %d\r\n", eStatus);
-
-    printf("[MODBUS] Addr=0x01 Baud=9600 8N1 Regs=%d\r\n", REG_HOLDING_MAX);
-    printf("[MODBUS] Modbus RTU slave started\r\n");
+    printf("[MODBUS] ready regs=%d\r\n", REG_HOLDING_MAX); /* always visible on boot */
 }
 
 void modbus_update_sensors(void)
@@ -785,13 +821,12 @@ void modbus_process(void)
     eMBErrorCode eStatus = eMBPoll();
     if (eStatus != MB_ENOERR)
     {
-        printf("[MODBUS] eMBPoll err=%d\r\n", eStatus);
+        DBG("[MODBUS] poll err=%d\r\n", eStatus);
     }
 
-    /* Execute deferred calibration commands AFTER eMBPoll() has finished
-     * sending the response frame. Flash erase (1-3 s) inside the holding
-     * register callback would cause the master to time out. */
+    /* Deferred Flash saves – must run after eMBPoll() has sent the response */
     modbus_process_pending_calib();
+    modbus_process_pending_servo_save();
 }
 
 uint16_t modbus_get_register(uint16_t addr)
@@ -852,7 +887,7 @@ eMBErrorCode eMBRegHoldingCB(UCHAR *pucRegBuffer, USHORT usAddress, USHORT usNRe
     USHORT usRegAddr;
     int i;
 
-    printf("[MODBUS] HoldingCB addr=%d nregs=%d mode=%d\r\n", usAddress, usNRegs, eMode);
+    DBG("[MB] CB a=%d n=%d m=%d\r\n", usAddress, usNRegs, eMode);
 
     usAddress--;  /* FreeModbus passes 1-based address, convert to 0-based */
 
@@ -863,6 +898,17 @@ eMBErrorCode eMBRegHoldingCB(UCHAR *pucRegBuffer, USHORT usAddress, USHORT usNRe
 
     usRegAddr = usAddress;
 
+    if (eMode == MB_REG_WRITE)
+    {
+        /* Pre-validate the entire address range before touching any register.
+         * Prevents partial writes when a batch spans writable + read-only regs. */
+        for (i = 0; i < usNRegs; i++)
+        {
+            if (!is_reg_writable(usRegAddr + i))
+                return MB_ENOREG;
+        }
+    }
+
     for (i = 0; i < usNRegs; i++)
     {
         if (eMode == MB_REG_READ)
@@ -872,15 +918,11 @@ eMBErrorCode eMBRegHoldingCB(UCHAR *pucRegBuffer, USHORT usAddress, USHORT usNRe
         }
         else
         {
-            if (!is_reg_writable(usRegAddr))
-            {
-                return MB_ENOREG;
-            }
             UCHAR hi = *pucRegBuffer++;
             UCHAR lo = *pucRegBuffer++;
             g_modbus_registers[usRegAddr] = (hi << 8) | lo;
             apply_register(usRegAddr);
-            printf("[MODBUS] WRITE reg[0x%04X]=%d\r\n", usRegAddr, g_modbus_registers[usRegAddr]);
+            DBG("[MB] W[%X]=%d\r\n", usRegAddr, g_modbus_registers[usRegAddr]);
         }
         usRegAddr++;
     }

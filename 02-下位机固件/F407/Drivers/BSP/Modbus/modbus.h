@@ -287,8 +287,15 @@
 #define REG_SERVO7_AUTO_EN     230    /* 0x00E6 */
 #define REG_SERVO8_AUTO_EN     231    /* 0x00E7 */
 
+/* Servo comp save command + debug enable */
+#define REG_SERVO_SAVE_CMD     159    /* 0x009F: Write 0x5A5A = save servo comp to Flash (deferred) */
+#define REG_DBG_EN             232    /* 0x00E8: Write 1=enable debug output, 0=disable */
+
 /* Total register count */
-#define REG_HOLDING_MAX       232
+#define REG_HOLDING_MAX        233
+
+/* Debug enable flag – also writable via REG_DBG_EN or USART1 command "DBG 1" */
+extern volatile uint8_t g_debug_en;
 
 void modbus_init(void);
 void modbus_process(void);
