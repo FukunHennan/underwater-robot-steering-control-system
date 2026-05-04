@@ -8,38 +8,33 @@
 
 ```
 e:\毕业设计\
-├── 04-技术文档/              # 项目文档与知识库
-│   ├── Documentation/        # 论文文档
-│   │   ├── 论文正文.md       # 完整论文内容
-│   │   ├── 论文大纲.md       # 论文大纲
-│   │   └── docx/             # Word文档原始文件
-├── Wiki/                     # 项目知识库 (管理体系)
+├── 01-硬件设计/              # 电路原理图
+├── 02-下位机固件/            # STM32F407 固件
+│   └── F407/
+│       ├── User/             # 用户代码 (demo.c, main.c)
+│       └── Drivers/BSP/      # 板级驱动
+│           ├── ATK_MS901M/   # 九轴姿态传感器驱动
+│           ├── Modbus/       # Modbus RTU 从站 (159寄存器)
+│           ├── Kalman/       # 六通道卡尔曼滤波器
+│           ├── PWM/          # 10路PWM输出
+│           ├── ADC/          # 5通道ADC DMA采集
+│           ├── Calib/        # ADC校准 (Flash存储)
+│           └── GPIO/         # 4路扩展GPIO
+├── 03-上位机软件/            # React Web Dashboard
+│   └── modbus-dashboard/src/
+│       ├── lib/modbus.ts     # 寄存器定义 + Modbus通信
+│       ├── pages/            # 5个功能页面
+│       ├── stores/           # 状态管理
+│       └── components/       # UI组件
+├── Wiki/                     # 项目知识库
 │   ├── README.md             # Wiki索引
-│   ├── entities/             # 实体文档
-│   │   ├── modbus-register-map.md  # 寄存器映射详解
-│   │   ├── adc-calibration.md      # ADC校准系统
-│   │   └── web-dashboard.md        # 上位机使用指南
-│   └── health-check-log.md   # 健康检查记录
-├── .vscode/                  # VS Code 配置
-│   ├── settings.json         # VS Code 设置
-│   └── extensions.json       # 推荐扩展
-├── Hardware/                 # 硬件设计
-│   └── V1.0原理图.pdf        # 电路原理图
-├── Software/
-│   ├── F407/                 # STM32F407 下位机代码
-│   │   ├── User/             # 用户代码 (demo.c, main.c)
-│   │   └── Drivers/          # 驱动代码
-│   │       ├── BSP/          # 板级驱动
-│   │       │   ├── Modbus/   # Modbus RTU 从站 (118寄存器)
-│   │       │   ├── ADC/      # 5通道ADC采集
-│   │       │   ├── PWM/      # 10路PWM输出
-│   │       │   ├── GPIO/     # GPIO扩展驱动
-│   │       │   ├── Calib/    # ADC校准 (Flash存储)
-│   │       │   └── ATK_MS901M/# 九轴姿态传感器
-│   │       └── STM32F4xx_HAL_Driver/
-│   └── modbus-dashboard/     # React 上位机 (Web Dashboard)
-├── README.md                 # 本文件
-└── DEVLOG.md                 # 开发日志
+│   ├── system-architecture.md # 架构图与流程图
+│   └── entities/             # 详细文档
+│       ├── modbus-register-map.md  # 寄存器映射
+│       ├── pinout.md               # 硬件引脚
+│       ├── kalman-filter.md        # 卡尔曼滤波
+│       └── servo-compensation.md   # 舵机姿态补偿
+└── README.md                 # 本文件
 ```
 
 ---
@@ -58,23 +53,21 @@ e:\毕业设计\
 **传感器**:
 | 传感器 | 型号 | 接口 | 功能 |
 |--------|------|------|------|
-| 九轴IMU | ATK-MS901M | UART | 姿态角+陀螺仪+气压计 |
-| ADC | STM32内置 | GPIO | 4路模拟输入+电压检测 |
+| 九轴IMU | ATK-MS901M | USART3 | 陀螺仪+加速度+磁力计+气压计 |
+| ADC | STM32内置 | DMA | 4路模拟输入+电压检测 |
 
 **执行器**:
-| 类型 | 数量 | 接口 |
-|------|------|------|
-| 舵机 | 8路 | PWM (500-2500μs) |
-| LED | 2路 | PWM调光 |
+| 类型 | 数量 | 接口 | 引脚 |
+|------|------|------|------|
+| 舵机 | 8路 | PWM 50Hz | PA8–PA11, PC6–PC9 |
+| LED | 2路 | PWM调光 | PA15, PC10 |
 
 **扩展接口**:
 | 功能 | 引脚 | 说明 |
 |------|------|------|
-| GPIO0 | PB12 | 通用GPIO |
-| GPIO2 | PE6 | 通用GPIO |
-| GPIO3 | PE5 | 通用GPIO |
-| GPIO4 | PC4 | 通用GPIO |
-| IR_RX | PC5 | 红外接收 (NEC协议) |
+| GPIO0–3 | PB12/PE6/PE5/PC4 | 4路可配置输入/输出 |
+| IR_RX | PE4 | 红外接收 NEC协议 (EXTI4) |
+| IR_TX | PC5 | 红外发射 NEC协议 |
 
 ---
 
@@ -84,26 +77,37 @@ e:\毕业设计\
 
 **固件版本**: V3.0
 **协议**: Modbus RTU 从站 (地址 0x01)
-**寄存器数量**: 118个
+**寄存器数量**: 159个 (0x0000–0x00E8)
 
 | 功能模块 | 说明 |
 |---------|------|
-| 姿态采集 | MS901M九轴数据 + 卡尔曼滤波 |
-| PWM控制 | 10路输出 (舵机/LED) |
-| ADC采集 | 5通道DMA + 线性校准 |
-| 红外解码 | NEC协议实时解码 |
+| 姿态采集 | MS901M九轴数据 + 六通道卡尔曼滤波 |
+| 磁力计 | 三轴磁场数据（float, μT） |
+| 气压计 | 气压/海拔/温度 |
+| PWM控制 | 10路输出 (8舵机+2LED)，频率可调 |
+| 舵机补偿 | 8路独立姿态补偿 (BASE+kR/kP/kY)，Flash保存 |
+| ADC采集 | 5通道DMA + 线性校准，Flash保存 |
+| 红外收发 | NEC协议 TX (PC5) + RX (PE4) |
 | GPIO扩展 | 4路可配置输入/输出 |
 
 ### 上位机 (modbus-dashboard)
 
 **技术栈**: React 18 + Vite + TypeScript + TailwindCSS
 
+**页面**: 系统 / 传感器 / 舵机 / 外设 / 高级 (5页)
+
 **特性**:
-- 🌐 浏览器直连 (Web Serial API)
-- 📊 3D姿态可视化
-- 📈 实时波形显示
-- 🔧 ADC校准面板
-- 📝 通信日志
+- 浏览器直连 (Web Serial API)，无需额外软件
+- 3D姿态可视化 + 实时波形
+- 磁力计数据显示
+- 舵机补偿系数配置
+- ADC校准面板 (增益/偏移)
+- 卡尔曼 Q/R 参数实时调节
+- GPIO 控制 + 红外收发
+- 自动重连 (最多10次，指数退避)
+- 通信日志
+
+**Mock 模式**: 追加 `?mock` 参数无需硬件即可预览
 
 ---
 
@@ -143,19 +147,23 @@ http://localhost:5173?mock
 
 ---
 
-## Modbus 寄存器
+## Modbus 寄存器速查
 
-| 地址 | 功能 | 说明 |
-|------|------|------|
-| 0x0000-0x0005 | 系统 | 设备ID、版本、模式、故障码 |
-| 0x0010-0x001B | 姿态 | Roll/Pitch/Yaw + Gyro |
-| 0x0020-0x0029 | PWM | 8路舵机 + 2路LED |
-| 0x0030-0x0039 | ADC | 4路模拟 + 电压 |
-| 0x0040-0x0047 | 频率 | PWM频率配置 |
-| 0x0048-0x004D | 气压计 | 气压/海拔/温度 |
-| 0x0050-0x0065 | 校准 | ADC校准参数 |
-| 0x0066-0x0071 | GPIO | 扩展IO控制 |
-| 0x0072-0x0075 | 红外 | 遥控接收 |
+| 地址范围 | 功能 | 说明 |
+|---------|------|------|
+| 0x0000–0x0005 | 系统 | 设备ID、版本、模式、故障码、运行时间 |
+| 0x0010–0x001B | 姿态 | Roll/Pitch/Yaw + Gyro X/Y/Z (float) |
+| 0x0020–0x0029 | PWM | 8路舵机 + 2路LED |
+| 0x0030–0x0039 | ADC | 4路模拟校准值 + 电压 + 5路原始值 |
+| 0x0040–0x0047 | PWM频率 | 4组定时器 ARR/PSC 配置 |
+| 0x0048–0x004D | 气压计 | 气压(Pa)/海拔(cm)/温度(°C) |
+| 0x004E–0x0055 | 磁力计 | Mag X/Y/Z + 温度 (float, μT) |
+| 0x0056–0x006B | ADC校准 | 5通道增益/偏移 + 命令 |
+| 0x006C–0x0077 | GPIO | 4路模式/输出/输入 |
+| 0x0078–0x007F | 红外 | TX命令/数据 + RX状态/数据 + 解码参数 |
+| 0x0086–0x009E | 卡尔曼 | 6通道 Q/R 参数 + 复位命令 |
+| 0x00A0–0x00DF | 舵机补偿 | 8路 BASE/kRoll/kPitch/kYaw |
+| 0x00E0–0x00E7 | 补偿启用 | 8路补偿使能标志 |
 
 详见 [Wiki/寄存器映射](Wiki/entities/modbus-register-map.md)
 
@@ -182,11 +190,12 @@ http://localhost:5173?mock
 
 | 文档 | 说明 |
 |------|------|
-| [论文正文](04-技术文档/Documentation/论文正文.md) | 完整毕业设计论文 |
 | [Wiki首页](Wiki/README.md) | 知识库索引 |
-| [寄存器映射](Wiki/entities/modbus-register-map.md) | Modbus详细说明 |
-| [ADC校准](Wiki/entities/adc-calibration.md) | 校准系统详解 |
-| [Dashboard指南](Wiki/entities/web-dashboard.md) | 上位机使用说明 |
+| [系统架构图](Wiki/system-architecture.md) | 架构图、数据流、流程图 |
+| [寄存器映射](Wiki/entities/modbus-register-map.md) | 159个寄存器完整说明 |
+| [硬件引脚](Wiki/entities/pinout.md) | STM32F407 引脚分配 |
+| [卡尔曼滤波](Wiki/entities/kalman-filter.md) | 滤波原理与参数调节 |
+| [舵机姿态补偿](Wiki/entities/servo-compensation.md) | 补偿算法与使用指南 |
 
 ---
 
@@ -194,7 +203,6 @@ http://localhost:5173?mock
 
 - [ ] PID 姿态闭环控制算法
 - [ ] 深度传感器与深度控制
-- [ ] 红外发送功能
 - [ ] ESP32 Wi-Fi 无线通信
 - [ ] 水下摄像头集成
 - [ ] 自主导航算法
@@ -204,5 +212,3 @@ http://localhost:5173?mock
 ## 开发日志
 
 详细的开发记录、问题解决和版本变更请查看 [DEVLOG.md](DEVLOG.md)
-
-健康检查记录请查看 [Wiki/health-check-log.md](Wiki/health-check-log.md)
