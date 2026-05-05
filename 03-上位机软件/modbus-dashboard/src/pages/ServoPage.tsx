@@ -43,6 +43,22 @@ export function ServoPage() {
 
   const connected = connState === 'connected' && !!client
 
+  useEffect(() => {
+    if (!connected || !client) return
+    client.readAllServoComp().then(channels => {
+      setLocalComp(channels.map(c => ({
+        baseAngle: c.baseAngle,
+        kRoll: c.kRoll,
+        kPitch: c.kPitch,
+        kYaw: c.kYaw,
+      })))
+    }).catch(() => null)
+    client.readAllServoCompEnable().then(enables => {
+      setCompEnabled(enables)
+      setAutoEnabled(enables.every(x => x))
+    }).catch(() => null)
+  }, [connected])
+
   const sendServo = useCallback(async (ch: number, duty: number) => {
     if (!client || !connected) return
     try {
@@ -102,6 +118,7 @@ export function ServoPage() {
       setCompEnabled(prev => {
         const n = [...prev]
         n[ch] = enabled
+        setAutoEnabled(n.every(x => x))
         return n
       })
       if (!enabled && expandedServo === ch) {
@@ -134,7 +151,7 @@ export function ServoPage() {
         await handleCompApply(i)
       }
       await client.saveServoCompToFlash()
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 3000))
     } catch (e: any) {
       setError(e.message)
     } finally {

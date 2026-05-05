@@ -98,8 +98,18 @@ function AppShell() {
   }
 
   const handleConnectAction = async () => {
-    try { setError(''); await handleConnect(); clearAttHistory(); client.readGPIO().then(setGpio).catch(() => null); client.readIR().then(setIr).catch(() => null) }
-    catch (e: any) { setError(e.message) }
+    try {
+      setError('')
+      await handleConnect()
+      clearAttHistory()
+      client.readCalibration().then(setCalib).catch(() => null)
+      client.readKalmanParams().then(kp => setKalman({
+        q: [kp.qRoll, kp.qPitch, kp.qYaw, kp.qGyroX, kp.qGyroY, kp.qGyroZ],
+        r: [kp.rRoll, kp.rPitch, kp.rYaw, kp.rGyroX, kp.rGyroY, kp.rGyroZ],
+      })).catch(() => null)
+      client.readGPIO().then(setGpio).catch(() => null)
+      client.readIR().then(setIr).catch(() => null)
+    } catch (e: any) { setError(e.message) }
   }
 
   const handleDisconnectAction = async () => {

@@ -26,6 +26,7 @@
 #include "atk_ms901m.h"
 #include <string.h>
 #include "kalman.h"
+#include "servo_comp.h"
 #include "calib.h"
 #include "gpio.h"
 
@@ -92,17 +93,14 @@ void demo_run(void)
     printf("[INFO] Waiting for Modbus requests...\r\n");
     printf("\r\n");
     
-    /* Initialize Kalman filters for attitude angles (Q=0.001, R=0.1) */
-    kalman_filter_t kf_roll, kf_pitch, kf_yaw;
-    kalman_init(&kf_roll,  0.001f, 0.1f, 0.0f);
-    kalman_init(&kf_pitch, 0.001f, 0.1f, 0.0f);
-    kalman_init(&kf_yaw,   0.001f, 0.1f, 0.0f);
-
-    /* Initialize Kalman filters for gyroscope (Q=0.01, R=0.05) */
-    kalman_filter_t kf_gyro_x, kf_gyro_y, kf_gyro_z;
-    kalman_init(&kf_gyro_x, 0.01f, 0.05f, 0.0f);
-    kalman_init(&kf_gyro_y, 0.01f, 0.05f, 0.0f);
-    kalman_init(&kf_gyro_z, 0.01f, 0.05f, 0.0f);
+    /* Initialize Kalman filters using global g_kalman[] so that
+     * Modbus Q/R writes and Flash-loaded values take effect immediately. */
+    kalman_init(&g_kalman[KALMAN_CH_ROLL],   0.001f, 0.1f,  0.0f);
+    kalman_init(&g_kalman[KALMAN_CH_PITCH],  0.001f, 0.1f,  0.0f);
+    kalman_init(&g_kalman[KALMAN_CH_YAW],    0.001f, 0.1f,  0.0f);
+    kalman_init(&g_kalman[KALMAN_CH_GYRO_X], 0.01f,  0.05f, 0.0f);
+    kalman_init(&g_kalman[KALMAN_CH_GYRO_Y], 0.01f,  0.05f, 0.0f);
+    kalman_init(&g_kalman[KALMAN_CH_GYRO_Z], 0.01f,  0.05f, 0.0f);
 
     uint32_t last_tick = HAL_GetTick();
     printf("[OK] Kalman filters initialized!\r\n\n");
@@ -123,9 +121,9 @@ void demo_run(void)
 
             if (atk_ms901m_get_gyro_accelerometer(&gyro, NULL, 5) == ATK_MS901M_EOK)
             {
-                filtered_gx = kalman_update_simple(&kf_gyro_x, gyro.x);
-                filtered_gy = kalman_update_simple(&kf_gyro_y, gyro.y);
-                filtered_gz = kalman_update_simple(&kf_gyro_z, gyro.z);
+                filtered_gx = kalman_update_simple(&g_kalman[KALMAN_CH_GYRO_X], gyro.x);
+                filtered_gy = kalman_update_simple(&g_kalman[KALMAN_CH_GYRO_Y], gyro.y);
+                filtered_gz = kalman_update_simple(&g_kalman[KALMAN_CH_GYRO_Z], gyro.z);
 
                 modbus_set_register_float(REG_GYRO_X, filtered_gx);
                 modbus_set_register_float(REG_GYRO_Y, filtered_gy);
@@ -142,13 +140,13 @@ void demo_run(void)
                  * current Kalman state before update, then re-normalize the
                  * output back to [-180, 180]. */
                 float yaw_meas = att.yaw;
-                while (yaw_meas - kf_yaw.x >  180.0f) yaw_meas -= 360.0f;
-                while (yaw_meas - kf_yaw.x < -180.0f) yaw_meas += 360.0f;
+                while (yaw_meas - g_kalman[KALMAN_CH_YAW].x >  180.0f) yaw_meas -= 360.0f;
+                while (yaw_meas - g_kalman[KALMAN_CH_YAW].x < -180.0f) yaw_meas += 360.0f;
 
                 /* Use gyro as prediction model, attitude angle as observation */
-                filtered_roll  = kalman_update(&kf_roll,  att.roll,  filtered_gx, dt);
-                filtered_pitch = kalman_update(&kf_pitch, att.pitch, filtered_gy, dt);
-                filtered_yaw   = kalman_update(&kf_yaw,   yaw_meas,  filtered_gz, dt);
+                filtered_roll  = kalman_update(&g_kalman[KALMAN_CH_ROLL],  att.roll,  filtered_gx, dt);
+                filtered_pitch = kalman_update(&g_kalman[KALMAN_CH_PITCH], att.pitch, filtered_gy, dt);
+                filtered_yaw   = kalman_update(&g_kalman[KALMAN_CH_YAW],   yaw_meas,  filtered_gz, dt);
 
                 /* Normalize filtered yaw back to [-180, 180] for output. */
                 while (filtered_yaw >  180.0f) filtered_yaw -= 360.0f;
@@ -157,6 +155,9 @@ void demo_run(void)
                 modbus_set_register_float(REG_ROLL,  filtered_roll);
                 modbus_set_register_float(REG_PITCH, filtered_pitch);
                 modbus_set_register_float(REG_YAW,   filtered_yaw);
+
+                /* Apply attitude compensation to enabled servo channels */
+                servo_comp_update(filtered_roll, filtered_pitch, filtered_yaw);
             }
         }
 

@@ -8,6 +8,7 @@
 
 #include "servo_comp.h"
 #include "modbus.h"
+#include "pwm.h"
 #include <string.h>
 
 static servo_comp_data_t g_servo_comp;
@@ -77,6 +78,58 @@ void servo_comp_apply(uint16_t *regs)
         regs[base + 7] = (uint16_t)(raw & 0xFFFFu);
 
         regs[REG_SERVO1_AUTO_EN + i] = g_servo_comp.auto_en[i];
+    }
+}
+
+void servo_comp_set_data(const servo_comp_data_t *src, uint16_t *regs)
+{
+    memcpy(&g_servo_comp, src, sizeof(servo_comp_data_t));
+    servo_comp_apply(regs);
+}
+
+void servo_comp_update(float roll, float pitch, float yaw)
+{
+    static uint32_t s_last_tick          = 0;
+    static uint16_t s_last_duty[SERVO_COMP_CH_COUNT] = {0};
+    uint8_t i;
+
+    /* Rate-limit: update servos at most every 20 ms (50 Hz) */
+    uint32_t now = HAL_GetTick();
+    if ((now - s_last_tick) < 20u) return;
+    s_last_tick = now;
+
+    for (i = 0; i < SERVO_COMP_CH_COUNT; i++)
+    {
+        /* Read enable flag directly from Modbus register so upper-computer
+         * writes take effect immediately without needing g_servo_comp sync. */
+        if (!modbus_get_register(REG_SERVO1_AUTO_EN + i)) continue;
+
+        /* Read compensation coefficients from Modbus registers (always current) */
+        uint16_t base = (uint16_t)(REG_SERVO1_BASE + i * 8);
+        float base_angle = modbus_get_register_float(base);
+        float k_roll     = modbus_get_register_float((uint16_t)(base + 2));
+        float k_pitch    = modbus_get_register_float((uint16_t)(base + 4));
+        float k_yaw      = modbus_get_register_float((uint16_t)(base + 6));
+
+        float angle = base_angle
+                    + k_roll  * roll
+                    + k_pitch * pitch
+                    + k_yaw   * yaw;
+
+        /* PWM formula matches upper-computer convention:
+         *   SERVO_ZERO = 500 µs, SERVO_US_PER_DEG = 10 µs/°
+         *   duty = 500 + angle * 10  →  0°=500µs  90°=1400µs  180°=2300µs */
+        int32_t duty = (int32_t)(500.0f + angle * 10.0f);
+        if (duty < 500)  duty = 500;
+        if (duty > 2500) duty = 2500;
+
+        /* Deadband: skip update if change < 5 µs (~0.9°) to suppress noise jitter */
+        int32_t diff = duty - (int32_t)s_last_duty[i];
+        if (diff > -5 && diff < 5) continue;
+        s_last_duty[i] = (uint16_t)duty;
+
+        modbus_set_register(REG_SERVO1 + i, (uint16_t)duty);
+        pwm_set_duty((uint8_t)(PWM_CH_SERVO_1 + i), (uint16_t)duty);
     }
 }
 

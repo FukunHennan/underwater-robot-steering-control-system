@@ -28,6 +28,8 @@
 #include "calib.h"
 #include "gpio.h"
 #include "kalman.h"
+#include "kalman_persist.h"
+#include "device_config.h"
 #include "atk_ms901m.h"
 #include <string.h>
 
@@ -41,6 +43,7 @@ static void modbus_ir_init(void);
 static void modbus_ir_reset(void);
 static void modbus_ir_on_edge(uint8_t level, uint32_t now_us);
 static void modbus_sync_kalman_to_regs(void);
+static void modbus_process_pending_kalman_save(void);
 
 /* Modbus holding register array */
 static USHORT g_modbus_registers[REG_HOLDING_MAX];
@@ -49,7 +52,8 @@ static USHORT g_modbus_registers[REG_HOLDING_MAX];
  * blocking the Modbus response (Flash sector erase takes ~1-3 s which
  * would cause the master to time out and see a stale frame with bad CRC). */
 static volatile uint16_t g_pending_calib_cmd  = 0;
-static volatile uint8_t  g_pending_servo_save = 0;
+static volatile uint8_t  g_pending_servo_save  = 0;
+static volatile uint8_t  g_pending_kalman_save = 0;
 
 /* IR receive (DI2 = PE4, NEC protocol) */
 #define IR_RX_GPIO_PORT              GPIOE
@@ -399,9 +403,8 @@ static BOOL is_reg_writable(USHORT addr)
     if (addr >= REG_IR_TX_CMD && addr <= REG_IR_TX_DATA) return TRUE;
     if (addr >= REG_IR_LEAD_LOW_LO && addr <= REG_IR_BIT1_HI) return TRUE;
     if (addr >= REG_KALMAN_Q_ROLL && addr <= REG_KALMAN_CMD) return TRUE;
-    /* Servo compensation coefficients and enable flags */
-    if (addr >= REG_SERVO1_BASE && addr <= REG_SERVO8_K_YAW) return TRUE;
-    if (addr >= REG_SERVO1_AUTO_EN && addr <= REG_SERVO8_AUTO_EN) return TRUE;
+    /* Servo compensation coefficients (160-223) and enable flags (224-231) */
+    if (addr >= REG_SERVO1_BASE && addr <= REG_SERVO8_AUTO_EN) return TRUE;
     /* Servo comp Flash save command */
     if (addr == REG_SERVO_SAVE_CMD) return TRUE;
     /* Debug enable control */
@@ -509,7 +512,11 @@ static void apply_register(USHORT addr)
     else if (addr == REG_KALMAN_CMD)
     {
         uint16_t cmd = g_modbus_registers[REG_KALMAN_CMD];
-        if (cmd == 1)
+        if (cmd == KALMAN_CMD_SAVE)
+        {
+            g_pending_kalman_save = 1;
+        }
+        else if (cmd == KALMAN_CMD_RESET)
         {
             kalman_reset_all();
             modbus_sync_kalman_to_regs();
@@ -540,15 +547,22 @@ static void modbus_process_pending_servo_save(void)
     if (!g_pending_servo_save) return;
     g_pending_servo_save = 0;
 
-    eMBDisable();
-    HAL_Delay(10);
-
-    HAL_StatusTypeDef st = servo_comp_save(g_modbus_registers);
+    HAL_StatusTypeDef st = device_config_save(g_modbus_registers);
     g_modbus_registers[REG_CAL_STATUS] = (st == HAL_OK) ? CALIB_STATUS_OK : CALIB_STATUS_ERROR;
-    DBG("[SCOMP] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
+    DBG("[SCOMP+ALL] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
+}
 
-    eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
-    eMBEnable();
+/**
+ * @brief  Deferred Kalman Q/R Flash save – must run outside eMBRegHoldingCB.
+ */
+static void modbus_process_pending_kalman_save(void)
+{
+    if (!g_pending_kalman_save) return;
+    g_pending_kalman_save = 0;
+
+    HAL_StatusTypeDef st = device_config_save(g_modbus_registers);
+    g_modbus_registers[REG_CAL_STATUS] = (st == HAL_OK) ? CALIB_STATUS_OK : CALIB_STATUS_ERROR;
+    DBG("[KALMAN+ALL] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
 }
 
 /**
@@ -563,18 +577,9 @@ static void modbus_process_pending_calib(void)
 
     if (cmd == CALIB_CMD_SAVE)
     {
-        HAL_StatusTypeDef st;
-
-        /* 1) 关 Modbus 接收，等 T3.5 残帧结束 (>4ms @9600 baud) */
-        eMBDisable();
-        HAL_Delay(10);
-
-        st = calib_save_to_flash();
+        HAL_StatusTypeDef st = device_config_save(g_modbus_registers);
         g_modbus_registers[REG_CAL_STATUS] = (st == HAL_OK) ? CALIB_STATUS_OK : CALIB_STATUS_ERROR;
-        DBG("[CALIB] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
-
-        eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
-        eMBEnable();
+        DBG("[CALIB+ALL] save: %s\r\n", (st == HAL_OK) ? "OK" : "FAIL");
     }
     else if (cmd == CALIB_CMD_RESET)
     {
@@ -612,44 +617,6 @@ static void modbus_sync_kalman_to_regs(void)
         modbus_set_register_float(REG_KALMAN_R_ROLL + ch * 4,     g_kalman[ch].r);
     }
     g_modbus_registers[REG_KALMAN_CMD] = 0;
-}
-
-/**
- * @brief  Calculate servo angle with attitude compensation
- * @param  servo_index: Servo index (0-7)
- * @retval Calculated PWM pulse width in microseconds
- */
-static uint16_t calculate_servo_with_compensation(uint8_t servo_index)
-{
-    float roll, pitch, yaw;
-    float base_angle, k_roll, k_pitch, k_yaw;
-    float compensated_angle;
-    int16_t pwm_us;
-    
-    /* Get current attitude data */
-    roll = modbus_get_register_float(REG_ROLL);
-    pitch = modbus_get_register_float(REG_PITCH);
-    yaw = modbus_get_register_float(REG_YAW);
-    
-    /* Get compensation coefficients for this servo */
-    uint16_t base_reg = REG_SERVO1_BASE + servo_index * 8;
-    base_angle = modbus_get_register_float(base_reg);
-    k_roll = modbus_get_register_float(base_reg + 2);
-    k_pitch = modbus_get_register_float(base_reg + 4);
-    k_yaw = modbus_get_register_float(base_reg + 6);
-    
-    /* Calculate compensated angle: BASE + K_ROLL*Roll + K_PITCH*Pitch + K_YAW*Yaw */
-    compensated_angle = base_angle + k_roll * roll + k_pitch * pitch + k_yaw * yaw;
-    
-    /* Convert angle to PWM pulse width (500-2500us for ±90° range) */
-    /* Formula: PWM = 1500 + angle * 10 (center at 1500us, 10us/degree) */
-    pwm_us = (int16_t)(1500.0f + compensated_angle * 10.0f);
-    
-    /* Clamp to valid range */
-    if (pwm_us < 500) pwm_us = 500;
-    if (pwm_us > 2500) pwm_us = 2500;
-    
-    return (uint16_t)pwm_us;
 }
 
 /* ----------------------- Public functions ---------------------------------*/
@@ -714,7 +681,8 @@ void modbus_init(void)
     g_modbus_registers[REG_IR_BIT1_HI]      = 1900U;
     modbus_ir_init();
 
-    /* Initialize Kalman filter registers with default Q/R values */
+    /* Initialize Kalman filter registers: load Flash values if valid, else keep defaults */
+    kalman_persist_init();
     modbus_sync_kalman_to_regs();
 
     /* Initialize servo compensation coefficients (default: no compensation) */
@@ -734,9 +702,21 @@ void modbus_init(void)
         g_modbus_registers[REG_SERVO1_AUTO_EN + i] = 0;
     }
 
-    /* Load servo compensation parameters saved to Flash */
+    /* Load servo compensation (old Sector 3 format, first-boot migration fallback) */
     servo_comp_init();
     servo_comp_apply(g_modbus_registers);
+
+    /* Load unified device config from Flash (Sector 2).
+     * If valid, overrides calib/kalman/servo defaults set above.  */
+    if (device_config_load(g_modbus_registers))
+    {
+        modbus_sync_kalman_to_regs(); /* mirror freshly-loaded g_kalman to registers */
+        DBG("[CFG] loaded from Flash\r\n");
+    }
+    else
+    {
+        DBG("[CFG] Flash invalid, using defaults\r\n");
+    }
 
     /* Initialize Modbus RTU slave */
     eStatus = eMBInit(MB_RTU, 0x01, 2, 9600, MB_PAR_NONE, 1);
@@ -797,21 +777,8 @@ void modbus_update_sensors(void)
         g_modbus_registers[REG_IR_RX_STATUS] = IR_STATUS_IDLE;
     }
 
-    /* Servo attitude compensation: auto-update PWM if enabled */
-    for (i = 0; i < 8; i++)
-    {
-        uint16_t auto_en_reg = REG_SERVO1_AUTO_EN + i;
-        if (g_modbus_registers[auto_en_reg] == 1)
-        {
-            /* Auto-compensation enabled, calculate compensated angle */
-            uint16_t pwm_us = calculate_servo_with_compensation((uint8_t)i);
-            
-            /* Update the servo register and apply to PWM hardware */
-            uint16_t servo_reg = REG_SERVO1 + i;
-            g_modbus_registers[servo_reg] = pwm_us;
-            pwm_set_duty((pwm_channel_t)(PWM_CH_SERVO_1 + i), pwm_us);
-        }
-    }
+    /* Servo attitude compensation is handled by servo_comp_update() in demo.c
+     * (rate-limited to 50 Hz with 5 us deadband to prevent jitter). */
 }
 
 void modbus_process(void)
@@ -827,6 +794,7 @@ void modbus_process(void)
     /* Deferred Flash saves – must run after eMBPoll() has sent the response */
     modbus_process_pending_calib();
     modbus_process_pending_servo_save();
+    modbus_process_pending_kalman_save();
 }
 
 uint16_t modbus_get_register(uint16_t addr)

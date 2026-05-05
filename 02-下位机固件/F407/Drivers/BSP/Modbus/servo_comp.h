@@ -36,7 +36,7 @@ typedef struct {
 
 /**
  * @brief  Load from Flash; if invalid use zero-init defaults.
- *         Call BEFORE modbus_init() populates registers.
+ *         Superseded by device_config_load() but kept for first-boot migration.
  */
 void servo_comp_init(void);
 
@@ -49,10 +49,29 @@ void servo_comp_apply(uint16_t *regs);
 
 /**
  * @brief  Read current values from modbus registers, build struct, write to Flash.
- *         Call ONLY from the main loop (not from eMBRegHoldingCB).
+ *         Superseded by device_config_save(); kept for reference.
  * @param  regs  Pointer to g_modbus_registers[0]
  * @return HAL_OK on success
  */
 HAL_StatusTypeDef servo_comp_save(const uint16_t *regs);
+
+/**
+ * @brief  Load servo compensation data from an external source into g_servo_comp
+ *         and mirror to Modbus registers. Used by device_config_load().
+ * @param  src   Source data (all fields except crc are copied)
+ * @param  regs  Pointer to g_modbus_registers[0]
+ */
+void servo_comp_set_data(const servo_comp_data_t *src, uint16_t *regs);
+
+/**
+ * @brief  Apply real-time attitude compensation to all enabled servo channels.
+ *         Call from main loop after Kalman-filtered attitude is updated.
+ *         For servo i with auto_en[i] != 0:
+ *           duty_us = clamp(1500 + (base + kR*roll + kP*pitch + kY*yaw) * (500/90), 500, 2500)
+ * @param  roll   Filtered roll  angle (deg)
+ * @param  pitch  Filtered pitch angle (deg)
+ * @param  yaw    Filtered yaw   angle (deg)
+ */
+void servo_comp_update(float roll, float pitch, float yaw);
 
 #endif /* __SERVO_COMP_H */
