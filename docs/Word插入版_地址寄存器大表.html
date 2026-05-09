@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Word插入版_地址寄存器大表</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<h1
+id="word插入版flash地址与modbus寄存器大表">Word插入版：Flash地址与Modbus寄存器大表</h1>
+<h2 id="表1-flash地址与存储用途总表">表1 Flash地址与存储用途总表</h2>
+<table>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 8%" />
+<col style="width: 8%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 8%" />
+<col style="width: 11%" />
+<col style="width: 8%" />
+<col style="width: 8%" />
+<col style="width: 8%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: right;">序号</th>
+<th>区域/模块</th>
+<th>宏定义</th>
+<th style="text-align: right;">起始地址</th>
+<th style="text-align: right;">结束地址</th>
+<th>Sector</th>
+<th style="text-align: right;">大小</th>
+<th>当前用途</th>
+<th>数据内容</th>
+<th>状态/说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td>Flash Bank 起始</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08000000</code></td>
+<td style="text-align: right;">-</td>
+<td>-</td>
+<td style="text-align: right;">512KB总容量</td>
+<td>STM32F407VET6内部Flash起始地址</td>
+<td>固件代码与参数存储</td>
+<td>MCU Flash基地址</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td>Sector 0</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08000000</code></td>
+<td style="text-align: right;"><code>0x08003FFF</code></td>
+<td>Sector 0</td>
+<td style="text-align: right;">16KB</td>
+<td>固件代码区</td>
+<td>程序代码</td>
+<td>当前未作为参数区</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td>Sector 1</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08004000</code></td>
+<td style="text-align: right;"><code>0x08007FFF</code></td>
+<td>Sector 1</td>
+<td style="text-align: right;">16KB</td>
+<td>固件代码区</td>
+<td>程序代码</td>
+<td>当前未作为参数区</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td>当前统一配置区</td>
+<td><code>DEVICE_CONFIG_FLASH_ADDR</code></td>
+<td style="text-align: right;"><code>0x08008000</code></td>
+<td style="text-align: right;"><code>0x0800BFFF</code></td>
+<td>Sector 2</td>
+<td style="text-align: right;">16KB</td>
+<td>当前主要参数持久化区域</td>
+<td>ADC校准、Kalman参数、舵机补偿参数、CRC</td>
+<td>当前实际保存区</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td>当前统一配置扇区</td>
+<td><code>DEVICE_CONFIG_FLASH_SECTOR</code></td>
+<td style="text-align: right;"><code>0x08008000</code></td>
+<td style="text-align: right;"><code>0x0800BFFF</code></td>
+<td><code>FLASH_SECTOR_2</code></td>
+<td style="text-align: right;">16KB</td>
+<td>Flash擦写目标扇区</td>
+<td><code>device_config_t</code>结构体</td>
+<td>保存时会擦除整个Sector 2</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td>当前统一配置Magic</td>
+<td><code>DEVICE_CONFIG_MAGIC</code></td>
+<td style="text-align: right;"><code>0x08008000</code>内部</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">4B</td>
+<td>判断是否为统一配置格式</td>
+<td>固定值<code>0xCF9A12E7</code></td>
+<td>读取时用于格式识别</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td>ADC校准增益</td>
+<td><code>calib_gain[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">5个float</td>
+<td>保存ADC校准增益</td>
+<td>电压与4路模拟量增益</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td>ADC校准偏移</td>
+<td><code>calib_off[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">5个float</td>
+<td>保存ADC校准偏移</td>
+<td>电压与4路模拟量偏移</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td>Kalman Q参数</td>
+<td><code>kalman_q[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">6个float</td>
+<td>保存Kalman过程噪声</td>
+<td>Roll、Pitch、Yaw、Gyro X/Y/Z Q</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td>Kalman R参数</td>
+<td><code>kalman_r[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">6个float</td>
+<td>保存Kalman观测噪声</td>
+<td>Roll、Pitch、Yaw、Gyro X/Y/Z R</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td>舵机基础角度</td>
+<td><code>servo_base[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">8个float</td>
+<td>保存8路舵机基础角度</td>
+<td>Servo1~Servo8 base angle</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td>舵机Roll补偿</td>
+<td><code>servo_roll[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">8个float</td>
+<td>保存Roll补偿系数</td>
+<td>Servo1~Servo8 K Roll</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td>舵机Pitch补偿</td>
+<td><code>servo_pitch[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">8个float</td>
+<td>保存Pitch补偿系数</td>
+<td>Servo1~Servo8 K Pitch</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td>舵机Yaw补偿</td>
+<td><code>servo_yaw[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">8个float</td>
+<td>保存Yaw补偿系数</td>
+<td>Servo1~Servo8 K Yaw</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td>舵机补偿使能</td>
+<td><code>servo_en[]</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">8个uint8_t</td>
+<td>保存8路舵机自动补偿开关</td>
+<td>0=关闭，1=开启</td>
+<td>属于<code>device_config_t</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td>配置CRC</td>
+<td><code>crc</code></td>
+<td style="text-align: right;"><code>0x08008000</code>之后</td>
+<td style="text-align: right;">-</td>
+<td>Sector 2</td>
+<td style="text-align: right;">4B</td>
+<td>校验统一配置完整性</td>
+<td>CRC校验值</td>
+<td>Magic和CRC都正确才加载</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td>旧ADC校准地址</td>
+<td><code>CALIB_FLASH_ADDR</code></td>
+<td style="text-align: right;"><code>0x08008000</code></td>
+<td style="text-align: right;"><code>0x0800BFFF</code></td>
+<td>Sector 2</td>
+<td style="text-align: right;">16KB</td>
+<td>旧版ADC校准保存地址</td>
+<td>ADC校准旧格式</td>
+<td>已被统一配置格式替代</td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td>旧舵机补偿地址</td>
+<td><code>SERVO_COMP_FLASH_ADDR</code></td>
+<td style="text-align: right;"><code>0x0800C000</code></td>
+<td style="text-align: right;"><code>0x0800FFFF</code></td>
+<td>Sector 3</td>
+<td style="text-align: right;">16KB</td>
+<td>旧版舵机补偿保存地址</td>
+<td>舵机补偿旧格式</td>
+<td>当前仅兼容读取</td>
+</tr>
+<tr>
+<td style="text-align: right;">19</td>
+<td>旧Kalman地址</td>
+<td><code>KALMAN_PERSIST_FLASH_ADDR</code></td>
+<td style="text-align: right;"><code>0x08010000</code></td>
+<td style="text-align: right;"><code>0x0801FFFF</code></td>
+<td>Sector 4</td>
+<td style="text-align: right;">64KB</td>
+<td>旧版Kalman参数保存地址</td>
+<td>Kalman Q/R旧格式</td>
+<td>当前仅兼容读取</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td>Sector 5</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08020000</code></td>
+<td style="text-align: right;"><code>0x0803FFFF</code></td>
+<td>Sector 5</td>
+<td style="text-align: right;">128KB</td>
+<td>未使用</td>
+<td>-</td>
+<td>可预留扩展</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td>Sector 6</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08040000</code></td>
+<td style="text-align: right;"><code>0x0805FFFF</code></td>
+<td>Sector 6</td>
+<td style="text-align: right;">128KB</td>
+<td>未使用</td>
+<td>-</td>
+<td>可预留扩展</td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td>Sector 7</td>
+<td>-</td>
+<td style="text-align: right;"><code>0x08060000</code></td>
+<td style="text-align: right;"><code>0x0807FFFF</code></td>
+<td>Sector 7</td>
+<td style="text-align: right;">128KB</td>
+<td>未使用</td>
+<td>-</td>
+<td>可预留扩展</td>
+</tr>
+</tbody>
+</table>
+<h2 id="表2-modbus-holding-register寄存器总表">表2 Modbus Holding
+Register寄存器总表</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+<col style="width: 11%" />
+</colgroup>
+<thead>
+<tr>
+<th style="text-align: right;">序号</th>
+<th style="text-align: right;">地址Hex</th>
+<th style="text-align: right;">地址Dec</th>
+<th>寄存器名称</th>
+<th>属性</th>
+<th>数据类型/单位</th>
+<th>所属模块</th>
+<th>功能说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;"><code>0x0000</code></td>
+<td style="text-align: right;">0</td>
+<td><code>REG_DEVICE_ID</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>设备ID，固定为<code>0x0407</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;"><code>0x0001</code></td>
+<td style="text-align: right;">1</td>
+<td><code>REG_FW_VERSION</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>固件版本，固定为<code>0x0300</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;"><code>0x0002</code></td>
+<td style="text-align: right;">2</td>
+<td><code>REG_RUN_MODE</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>运行模式</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;"><code>0x0003</code></td>
+<td style="text-align: right;">3</td>
+<td><code>REG_FAULT_CODE</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>故障码</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;"><code>0x0004</code></td>
+<td style="text-align: right;">4</td>
+<td><code>REG_SYS_TICK_L</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>系统Tick低16位</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;"><code>0x0005</code></td>
+<td style="text-align: right;">5</td>
+<td><code>REG_SYS_TICK_H</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>系统信息</td>
+<td>系统Tick高16位</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td style="text-align: right;"><code>0x0010~0x0011</code></td>
+<td style="text-align: right;">16~17</td>
+<td><code>REG_ROLL</code></td>
+<td>R</td>
+<td>float/deg</td>
+<td>姿态</td>
+<td>横滚角Roll</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;"><code>0x0012~0x0013</code></td>
+<td style="text-align: right;">18~19</td>
+<td><code>REG_PITCH</code></td>
+<td>R</td>
+<td>float/deg</td>
+<td>姿态</td>
+<td>俯仰角Pitch</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;"><code>0x0014~0x0015</code></td>
+<td style="text-align: right;">20~21</td>
+<td><code>REG_YAW</code></td>
+<td>R</td>
+<td>float/deg</td>
+<td>姿态</td>
+<td>偏航角Yaw</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;"><code>0x0016~0x0017</code></td>
+<td style="text-align: right;">22~23</td>
+<td><code>REG_GYRO_X</code></td>
+<td>R</td>
+<td>float</td>
+<td>陀螺仪</td>
+<td>X轴角速度</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;"><code>0x0018~0x0019</code></td>
+<td style="text-align: right;">24~25</td>
+<td><code>REG_GYRO_Y</code></td>
+<td>R</td>
+<td>float</td>
+<td>陀螺仪</td>
+<td>Y轴角速度</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;"><code>0x001A~0x001B</code></td>
+<td style="text-align: right;">26~27</td>
+<td><code>REG_GYRO_Z</code></td>
+<td>R</td>
+<td>float</td>
+<td>陀螺仪</td>
+<td>Z轴角速度</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;"><code>0x0020</code></td>
+<td style="text-align: right;">32</td>
+<td><code>REG_SERVO1</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机1 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td style="text-align: right;"><code>0x0021</code></td>
+<td style="text-align: right;">33</td>
+<td><code>REG_SERVO2</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机2 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;"><code>0x0022</code></td>
+<td style="text-align: right;">34</td>
+<td><code>REG_SERVO3</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机3 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;"><code>0x0023</code></td>
+<td style="text-align: right;">35</td>
+<td><code>REG_SERVO4</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机4 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td style="text-align: right;"><code>0x0024</code></td>
+<td style="text-align: right;">36</td>
+<td><code>REG_SERVO5</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机5 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;"><code>0x0025</code></td>
+<td style="text-align: right;">37</td>
+<td><code>REG_SERVO6</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机6 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">19</td>
+<td style="text-align: right;"><code>0x0026</code></td>
+<td style="text-align: right;">38</td>
+<td><code>REG_SERVO7</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机7 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;"><code>0x0027</code></td>
+<td style="text-align: right;">39</td>
+<td><code>REG_SERVO8</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>PWM输出</td>
+<td>舵机8 PWM脉宽</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td style="text-align: right;"><code>0x0028</code></td>
+<td style="text-align: right;">40</td>
+<td><code>REG_LED1</code></td>
+<td>R/W</td>
+<td>uint16/%</td>
+<td>PWM输出</td>
+<td>LED1亮度/PWM</td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;"><code>0x0029</code></td>
+<td style="text-align: right;">41</td>
+<td><code>REG_LED2</code></td>
+<td>R/W</td>
+<td>uint16/%</td>
+<td>PWM输出</td>
+<td>LED2亮度/PWM</td>
+</tr>
+<tr>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;"><code>0x0030</code></td>
+<td style="text-align: right;">48</td>
+<td><code>REG_ANALOG1</code>/<code>TEMP1</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>模拟通道1</td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;"><code>0x0031</code></td>
+<td style="text-align: right;">49</td>
+<td><code>REG_ANALOG2</code>/<code>TEMP2</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>模拟通道2</td>
+</tr>
+<tr>
+<td style="text-align: right;">25</td>
+<td style="text-align: right;"><code>0x0032</code></td>
+<td style="text-align: right;">50</td>
+<td><code>REG_ANALOG3</code>/<code>TEMP3</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>模拟通道3</td>
+</tr>
+<tr>
+<td style="text-align: right;">26</td>
+<td style="text-align: right;"><code>0x0033</code></td>
+<td style="text-align: right;">51</td>
+<td><code>REG_ANALOG4</code>/<code>TEMP4</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>模拟通道4</td>
+</tr>
+<tr>
+<td style="text-align: right;">27</td>
+<td style="text-align: right;"><code>0x0034</code></td>
+<td style="text-align: right;">52</td>
+<td><code>REG_VOLTAGE</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>电压值</td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;"><code>0x0035</code></td>
+<td style="text-align: right;">53</td>
+<td><code>REG_ADC_RAW0</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>ADC原始值0</td>
+</tr>
+<tr>
+<td style="text-align: right;">29</td>
+<td style="text-align: right;"><code>0x0036</code></td>
+<td style="text-align: right;">54</td>
+<td><code>REG_ADC_RAW1</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>ADC原始值1</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;"><code>0x0037</code></td>
+<td style="text-align: right;">55</td>
+<td><code>REG_ADC_RAW2</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>ADC原始值2</td>
+</tr>
+<tr>
+<td style="text-align: right;">31</td>
+<td style="text-align: right;"><code>0x0038</code></td>
+<td style="text-align: right;">56</td>
+<td><code>REG_ADC_RAW3</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>ADC原始值3</td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;"><code>0x0039</code></td>
+<td style="text-align: right;">57</td>
+<td><code>REG_ADC_RAW4</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC</td>
+<td>ADC原始值4</td>
+</tr>
+<tr>
+<td style="text-align: right;">33</td>
+<td style="text-align: right;"><code>0x0040</code></td>
+<td style="text-align: right;">64</td>
+<td><code>REG_PWM_ARR_G1</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组1 ARR</td>
+</tr>
+<tr>
+<td style="text-align: right;">34</td>
+<td style="text-align: right;"><code>0x0041</code></td>
+<td style="text-align: right;">65</td>
+<td><code>REG_PWM_PSC_G1</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组1 PSC</td>
+</tr>
+<tr>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;"><code>0x0042</code></td>
+<td style="text-align: right;">66</td>
+<td><code>REG_PWM_ARR_G2</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组2 ARR</td>
+</tr>
+<tr>
+<td style="text-align: right;">36</td>
+<td style="text-align: right;"><code>0x0043</code></td>
+<td style="text-align: right;">67</td>
+<td><code>REG_PWM_PSC_G2</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组2 PSC</td>
+</tr>
+<tr>
+<td style="text-align: right;">37</td>
+<td style="text-align: right;"><code>0x0044</code></td>
+<td style="text-align: right;">68</td>
+<td><code>REG_PWM_ARR_G3</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组3 ARR</td>
+</tr>
+<tr>
+<td style="text-align: right;">38</td>
+<td style="text-align: right;"><code>0x0045</code></td>
+<td style="text-align: right;">69</td>
+<td><code>REG_PWM_PSC_G3</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组3 PSC</td>
+</tr>
+<tr>
+<td style="text-align: right;">39</td>
+<td style="text-align: right;"><code>0x0046</code></td>
+<td style="text-align: right;">70</td>
+<td><code>REG_PWM_ARR_G4</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组4 ARR</td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td style="text-align: right;"><code>0x0047</code></td>
+<td style="text-align: right;">71</td>
+<td><code>REG_PWM_PSC_G4</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>PWM频率</td>
+<td>PWM组4 PSC</td>
+</tr>
+<tr>
+<td style="text-align: right;">41</td>
+<td style="text-align: right;"><code>0x0048~0x0049</code></td>
+<td style="text-align: right;">72~73</td>
+<td><code>REG_PRESSURE_H/L</code></td>
+<td>R</td>
+<td>int32</td>
+<td>气压计</td>
+<td>气压值，高低字</td>
+</tr>
+<tr>
+<td style="text-align: right;">42</td>
+<td style="text-align: right;"><code>0x004A~0x004B</code></td>
+<td style="text-align: right;">74~75</td>
+<td><code>REG_ALTITUDE_H/L</code></td>
+<td>R</td>
+<td>int32</td>
+<td>气压计</td>
+<td>高度值，高低字</td>
+</tr>
+<tr>
+<td style="text-align: right;">43</td>
+<td style="text-align: right;"><code>0x004C~0x004D</code></td>
+<td style="text-align: right;">76~77</td>
+<td><code>REG_BARO_TEMP</code></td>
+<td>R</td>
+<td>float</td>
+<td>气压计</td>
+<td>气压计温度</td>
+</tr>
+<tr>
+<td style="text-align: right;">44</td>
+<td style="text-align: right;"><code>0x004E~0x004F</code></td>
+<td style="text-align: right;">78~79</td>
+<td><code>REG_MAG_X</code></td>
+<td>R</td>
+<td>float</td>
+<td>磁力计</td>
+<td>X轴磁场</td>
+</tr>
+<tr>
+<td style="text-align: right;">45</td>
+<td style="text-align: right;"><code>0x0050~0x0051</code></td>
+<td style="text-align: right;">80~81</td>
+<td><code>REG_MAG_Y</code></td>
+<td>R</td>
+<td>float</td>
+<td>磁力计</td>
+<td>Y轴磁场</td>
+</tr>
+<tr>
+<td style="text-align: right;">46</td>
+<td style="text-align: right;"><code>0x0052~0x0053</code></td>
+<td style="text-align: right;">82~83</td>
+<td><code>REG_MAG_Z</code></td>
+<td>R</td>
+<td>float</td>
+<td>磁力计</td>
+<td>Z轴磁场</td>
+</tr>
+<tr>
+<td style="text-align: right;">47</td>
+<td style="text-align: right;"><code>0x0054~0x0055</code></td>
+<td style="text-align: right;">84~85</td>
+<td><code>REG_MAG_TEMP</code></td>
+<td>R</td>
+<td>float</td>
+<td>磁力计</td>
+<td>磁力计温度</td>
+</tr>
+<tr>
+<td style="text-align: right;">48</td>
+<td style="text-align: right;"><code>0x0056~0x0057</code></td>
+<td style="text-align: right;">86~87</td>
+<td><code>REG_CAL_VOLT_GAIN</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>电压校准增益</td>
+</tr>
+<tr>
+<td style="text-align: right;">49</td>
+<td style="text-align: right;"><code>0x0058~0x0059</code></td>
+<td style="text-align: right;">88~89</td>
+<td><code>REG_CAL_VOLT_OFF</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>电压校准偏移</td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;"><code>0x005A~0x005B</code></td>
+<td style="text-align: right;">90~91</td>
+<td><code>REG_CAL_AN1_GAIN</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道1校准增益</td>
+</tr>
+<tr>
+<td style="text-align: right;">51</td>
+<td style="text-align: right;"><code>0x005C~0x005D</code></td>
+<td style="text-align: right;">92~93</td>
+<td><code>REG_CAL_AN1_OFF</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道1校准偏移</td>
+</tr>
+<tr>
+<td style="text-align: right;">52</td>
+<td style="text-align: right;"><code>0x005E~0x005F</code></td>
+<td style="text-align: right;">94~95</td>
+<td><code>REG_CAL_AN2_GAIN</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道2校准增益</td>
+</tr>
+<tr>
+<td style="text-align: right;">53</td>
+<td style="text-align: right;"><code>0x0060~0x0061</code></td>
+<td style="text-align: right;">96~97</td>
+<td><code>REG_CAL_AN2_OFF</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道2校准偏移</td>
+</tr>
+<tr>
+<td style="text-align: right;">54</td>
+<td style="text-align: right;"><code>0x0062~0x0063</code></td>
+<td style="text-align: right;">98~99</td>
+<td><code>REG_CAL_AN3_GAIN</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道3校准增益</td>
+</tr>
+<tr>
+<td style="text-align: right;">55</td>
+<td style="text-align: right;"><code>0x0064~0x0065</code></td>
+<td style="text-align: right;">100~101</td>
+<td><code>REG_CAL_AN3_OFF</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道3校准偏移</td>
+</tr>
+<tr>
+<td style="text-align: right;">56</td>
+<td style="text-align: right;"><code>0x0066~0x0067</code></td>
+<td style="text-align: right;">102~103</td>
+<td><code>REG_CAL_AN4_GAIN</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道4校准增益</td>
+</tr>
+<tr>
+<td style="text-align: right;">57</td>
+<td style="text-align: right;"><code>0x0068~0x0069</code></td>
+<td style="text-align: right;">104~105</td>
+<td><code>REG_CAL_AN4_OFF</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>ADC校准</td>
+<td>模拟通道4校准偏移</td>
+</tr>
+<tr>
+<td style="text-align: right;">58</td>
+<td style="text-align: right;"><code>0x006A</code></td>
+<td style="text-align: right;">106</td>
+<td><code>REG_CAL_CMD</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>ADC校准</td>
+<td>写<code>0x5A5A</code>保存，写<code>0xA5A5</code>重置</td>
+</tr>
+<tr>
+<td style="text-align: right;">59</td>
+<td style="text-align: right;"><code>0x006B</code></td>
+<td style="text-align: right;">107</td>
+<td><code>REG_CAL_STATUS</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>ADC校准</td>
+<td><code>0=idle</code>，<code>1=OK</code>，<code>0xFF=error</code></td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;"><code>0x006C~0x006F</code></td>
+<td style="text-align: right;">108~111</td>
+<td><code>REG_GPIO_MODE0~3</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>GPIO</td>
+<td>GPIO模式，0=输入，1=输出</td>
+</tr>
+<tr>
+<td style="text-align: right;">61</td>
+<td style="text-align: right;"><code>0x0070~0x0073</code></td>
+<td style="text-align: right;">112~115</td>
+<td><code>REG_GPIO_OUT0~3</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>GPIO</td>
+<td>GPIO输出状态</td>
+</tr>
+<tr>
+<td style="text-align: right;">62</td>
+<td style="text-align: right;"><code>0x0074~0x0077</code></td>
+<td style="text-align: right;">116~119</td>
+<td><code>REG_GPIO_IN0~3</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>GPIO</td>
+<td>GPIO输入状态</td>
+</tr>
+<tr>
+<td style="text-align: right;">63</td>
+<td style="text-align: right;"><code>0x0078</code></td>
+<td style="text-align: right;">120</td>
+<td><code>REG_IR_TX_CMD</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>红外</td>
+<td>写入地址触发NEC发送；调试时显示边沿计数</td>
+</tr>
+<tr>
+<td style="text-align: right;">64</td>
+<td style="text-align: right;"><code>0x0079</code></td>
+<td style="text-align: right;">121</td>
+<td><code>REG_IR_TX_DATA</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>红外</td>
+<td>写入命令数据；调试时显示最近脉宽us</td>
+</tr>
+<tr>
+<td style="text-align: right;">65</td>
+<td style="text-align: right;"><code>0x007A</code></td>
+<td style="text-align: right;">122</td>
+<td><code>REG_IR_RX_STATUS</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>红外</td>
+<td>接收状态：0空闲，1收到帧，2重复码，3边沿调试</td>
+</tr>
+<tr>
+<td style="text-align: right;">66</td>
+<td style="text-align: right;"><code>0x007B</code></td>
+<td style="text-align: right;">123</td>
+<td><code>REG_IR_RX_DATA</code></td>
+<td>R</td>
+<td>uint16</td>
+<td>红外</td>
+<td>接收数据，高8位地址，低8位命令</td>
+</tr>
+<tr>
+<td style="text-align: right;">67</td>
+<td style="text-align: right;"><code>0x007C</code></td>
+<td style="text-align: right;">124</td>
+<td><code>REG_IR_LEAD_LOW_LO</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC引导低电平最小时间</td>
+</tr>
+<tr>
+<td style="text-align: right;">68</td>
+<td style="text-align: right;"><code>0x007D</code></td>
+<td style="text-align: right;">125</td>
+<td><code>REG_IR_LEAD_LOW_HI</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC引导低电平最大时间</td>
+</tr>
+<tr>
+<td style="text-align: right;">69</td>
+<td style="text-align: right;"><code>0x007E</code></td>
+<td style="text-align: right;">126</td>
+<td><code>REG_IR_LEAD_HIGH_LO</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC引导高电平最小时间</td>
+</tr>
+<tr>
+<td style="text-align: right;">70</td>
+<td style="text-align: right;"><code>0x007F</code></td>
+<td style="text-align: right;">127</td>
+<td><code>REG_IR_LEAD_HIGH_HI</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC引导高电平最大时间</td>
+</tr>
+<tr>
+<td style="text-align: right;">71</td>
+<td style="text-align: right;"><code>0x0080</code></td>
+<td style="text-align: right;">128</td>
+<td><code>REG_IR_BIT0_LO</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC数据0脉宽最小值</td>
+</tr>
+<tr>
+<td style="text-align: right;">72</td>
+<td style="text-align: right;"><code>0x0081</code></td>
+<td style="text-align: right;">129</td>
+<td><code>REG_IR_BIT0_HI</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC数据0脉宽最大值</td>
+</tr>
+<tr>
+<td style="text-align: right;">73</td>
+<td style="text-align: right;"><code>0x0082</code></td>
+<td style="text-align: right;">130</td>
+<td><code>REG_IR_BIT1_LO</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC数据1脉宽最小值</td>
+</tr>
+<tr>
+<td style="text-align: right;">74</td>
+<td style="text-align: right;"><code>0x0083</code></td>
+<td style="text-align: right;">131</td>
+<td><code>REG_IR_BIT1_HI</code></td>
+<td>R/W</td>
+<td>uint16/us</td>
+<td>红外参数</td>
+<td>NEC数据1脉宽最大值</td>
+</tr>
+<tr>
+<td style="text-align: right;">75</td>
+<td style="text-align: right;"><code>0x0086~0x0087</code></td>
+<td style="text-align: right;">134~135</td>
+<td><code>REG_KALMAN_Q_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Roll通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">76</td>
+<td style="text-align: right;"><code>0x0088~0x0089</code></td>
+<td style="text-align: right;">136~137</td>
+<td><code>REG_KALMAN_R_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Roll通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">77</td>
+<td style="text-align: right;"><code>0x008A~0x008B</code></td>
+<td style="text-align: right;">138~139</td>
+<td><code>REG_KALMAN_Q_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Pitch通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">78</td>
+<td style="text-align: right;"><code>0x008C~0x008D</code></td>
+<td style="text-align: right;">140~141</td>
+<td><code>REG_KALMAN_R_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Pitch通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">79</td>
+<td style="text-align: right;"><code>0x008E~0x008F</code></td>
+<td style="text-align: right;">142~143</td>
+<td><code>REG_KALMAN_Q_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Yaw通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">80</td>
+<td style="text-align: right;"><code>0x0090~0x0091</code></td>
+<td style="text-align: right;">144~145</td>
+<td><code>REG_KALMAN_R_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Yaw通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">81</td>
+<td style="text-align: right;"><code>0x0092~0x0093</code></td>
+<td style="text-align: right;">146~147</td>
+<td><code>REG_KALMAN_Q_GYRO_X</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro X通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">82</td>
+<td style="text-align: right;"><code>0x0094~0x0095</code></td>
+<td style="text-align: right;">148~149</td>
+<td><code>REG_KALMAN_R_GYRO_X</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro X通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">83</td>
+<td style="text-align: right;"><code>0x0096~0x0097</code></td>
+<td style="text-align: right;">150~151</td>
+<td><code>REG_KALMAN_Q_GYRO_Y</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro Y通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">84</td>
+<td style="text-align: right;"><code>0x0098~0x0099</code></td>
+<td style="text-align: right;">152~153</td>
+<td><code>REG_KALMAN_R_GYRO_Y</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro Y通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">85</td>
+<td style="text-align: right;"><code>0x009A~0x009B</code></td>
+<td style="text-align: right;">154~155</td>
+<td><code>REG_KALMAN_Q_GYRO_Z</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro Z通道Q参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">86</td>
+<td style="text-align: right;"><code>0x009C~0x009D</code></td>
+<td style="text-align: right;">156~157</td>
+<td><code>REG_KALMAN_R_GYRO_Z</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>Kalman</td>
+<td>Gyro Z通道R参数</td>
+</tr>
+<tr>
+<td style="text-align: right;">87</td>
+<td style="text-align: right;"><code>0x009E</code></td>
+<td style="text-align: right;">158</td>
+<td><code>REG_KALMAN_CMD</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>Kalman</td>
+<td>Kalman命令，写<code>0x5A5A</code>保存统一配置</td>
+</tr>
+<tr>
+<td style="text-align: right;">88</td>
+<td style="text-align: right;"><code>0x009F</code></td>
+<td style="text-align: right;">159</td>
+<td><code>REG_SERVO_SAVE_CMD</code></td>
+<td>W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>写<code>0x5A5A</code>保存统一配置到Flash</td>
+</tr>
+<tr>
+<td style="text-align: right;">89</td>
+<td style="text-align: right;"><code>0x00A0~0x00A1</code></td>
+<td style="text-align: right;">160~161</td>
+<td><code>REG_SERVO1_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机1基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">90</td>
+<td style="text-align: right;"><code>0x00A2~0x00A3</code></td>
+<td style="text-align: right;">162~163</td>
+<td><code>REG_SERVO1_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机1 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">91</td>
+<td style="text-align: right;"><code>0x00A4~0x00A5</code></td>
+<td style="text-align: right;">164~165</td>
+<td><code>REG_SERVO1_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机1 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">92</td>
+<td style="text-align: right;"><code>0x00A6~0x00A7</code></td>
+<td style="text-align: right;">166~167</td>
+<td><code>REG_SERVO1_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机1 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">93</td>
+<td style="text-align: right;"><code>0x00A8~0x00A9</code></td>
+<td style="text-align: right;">168~169</td>
+<td><code>REG_SERVO2_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机2基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">94</td>
+<td style="text-align: right;"><code>0x00AA~0x00AB</code></td>
+<td style="text-align: right;">170~171</td>
+<td><code>REG_SERVO2_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机2 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">95</td>
+<td style="text-align: right;"><code>0x00AC~0x00AD</code></td>
+<td style="text-align: right;">172~173</td>
+<td><code>REG_SERVO2_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机2 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">96</td>
+<td style="text-align: right;"><code>0x00AE~0x00AF</code></td>
+<td style="text-align: right;">174~175</td>
+<td><code>REG_SERVO2_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机2 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">97</td>
+<td style="text-align: right;"><code>0x00B0~0x00B1</code></td>
+<td style="text-align: right;">176~177</td>
+<td><code>REG_SERVO3_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机3基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">98</td>
+<td style="text-align: right;"><code>0x00B2~0x00B3</code></td>
+<td style="text-align: right;">178~179</td>
+<td><code>REG_SERVO3_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机3 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">99</td>
+<td style="text-align: right;"><code>0x00B4~0x00B5</code></td>
+<td style="text-align: right;">180~181</td>
+<td><code>REG_SERVO3_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机3 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">100</td>
+<td style="text-align: right;"><code>0x00B6~0x00B7</code></td>
+<td style="text-align: right;">182~183</td>
+<td><code>REG_SERVO3_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机3 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">101</td>
+<td style="text-align: right;"><code>0x00B8~0x00B9</code></td>
+<td style="text-align: right;">184~185</td>
+<td><code>REG_SERVO4_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机4基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">102</td>
+<td style="text-align: right;"><code>0x00BA~0x00BB</code></td>
+<td style="text-align: right;">186~187</td>
+<td><code>REG_SERVO4_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机4 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">103</td>
+<td style="text-align: right;"><code>0x00BC~0x00BD</code></td>
+<td style="text-align: right;">188~189</td>
+<td><code>REG_SERVO4_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机4 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">104</td>
+<td style="text-align: right;"><code>0x00BE~0x00BF</code></td>
+<td style="text-align: right;">190~191</td>
+<td><code>REG_SERVO4_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机4 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">105</td>
+<td style="text-align: right;"><code>0x00C0~0x00C1</code></td>
+<td style="text-align: right;">192~193</td>
+<td><code>REG_SERVO5_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机5基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">106</td>
+<td style="text-align: right;"><code>0x00C2~0x00C3</code></td>
+<td style="text-align: right;">194~195</td>
+<td><code>REG_SERVO5_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机5 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">107</td>
+<td style="text-align: right;"><code>0x00C4~0x00C5</code></td>
+<td style="text-align: right;">196~197</td>
+<td><code>REG_SERVO5_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机5 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">108</td>
+<td style="text-align: right;"><code>0x00C6~0x00C7</code></td>
+<td style="text-align: right;">198~199</td>
+<td><code>REG_SERVO5_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机5 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">109</td>
+<td style="text-align: right;"><code>0x00C8~0x00C9</code></td>
+<td style="text-align: right;">200~201</td>
+<td><code>REG_SERVO6_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机6基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">110</td>
+<td style="text-align: right;"><code>0x00CA~0x00CB</code></td>
+<td style="text-align: right;">202~203</td>
+<td><code>REG_SERVO6_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机6 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">111</td>
+<td style="text-align: right;"><code>0x00CC~0x00CD</code></td>
+<td style="text-align: right;">204~205</td>
+<td><code>REG_SERVO6_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机6 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">112</td>
+<td style="text-align: right;"><code>0x00CE~0x00CF</code></td>
+<td style="text-align: right;">206~207</td>
+<td><code>REG_SERVO6_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机6 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">113</td>
+<td style="text-align: right;"><code>0x00D0~0x00D1</code></td>
+<td style="text-align: right;">208~209</td>
+<td><code>REG_SERVO7_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机7基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">114</td>
+<td style="text-align: right;"><code>0x00D2~0x00D3</code></td>
+<td style="text-align: right;">210~211</td>
+<td><code>REG_SERVO7_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机7 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">115</td>
+<td style="text-align: right;"><code>0x00D4~0x00D5</code></td>
+<td style="text-align: right;">212~213</td>
+<td><code>REG_SERVO7_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机7 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">116</td>
+<td style="text-align: right;"><code>0x00D6~0x00D7</code></td>
+<td style="text-align: right;">214~215</td>
+<td><code>REG_SERVO7_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机7 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">117</td>
+<td style="text-align: right;"><code>0x00D8~0x00D9</code></td>
+<td style="text-align: right;">216~217</td>
+<td><code>REG_SERVO8_BASE</code></td>
+<td>R/W</td>
+<td>float/deg</td>
+<td>舵机补偿</td>
+<td>舵机8基础角度</td>
+</tr>
+<tr>
+<td style="text-align: right;">118</td>
+<td style="text-align: right;"><code>0x00DA~0x00DB</code></td>
+<td style="text-align: right;">218~219</td>
+<td><code>REG_SERVO8_K_ROLL</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机8 Roll补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">119</td>
+<td style="text-align: right;"><code>0x00DC~0x00DD</code></td>
+<td style="text-align: right;">220~221</td>
+<td><code>REG_SERVO8_K_PITCH</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机8 Pitch补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">120</td>
+<td style="text-align: right;"><code>0x00DE~0x00DF</code></td>
+<td style="text-align: right;">222~223</td>
+<td><code>REG_SERVO8_K_YAW</code></td>
+<td>R/W</td>
+<td>float</td>
+<td>舵机补偿</td>
+<td>舵机8 Yaw补偿系数</td>
+</tr>
+<tr>
+<td style="text-align: right;">121</td>
+<td style="text-align: right;"><code>0x00E0</code></td>
+<td style="text-align: right;">224</td>
+<td><code>REG_SERVO1_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机1补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">122</td>
+<td style="text-align: right;"><code>0x00E1</code></td>
+<td style="text-align: right;">225</td>
+<td><code>REG_SERVO2_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机2补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">123</td>
+<td style="text-align: right;"><code>0x00E2</code></td>
+<td style="text-align: right;">226</td>
+<td><code>REG_SERVO3_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机3补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">124</td>
+<td style="text-align: right;"><code>0x00E3</code></td>
+<td style="text-align: right;">227</td>
+<td><code>REG_SERVO4_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机4补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">125</td>
+<td style="text-align: right;"><code>0x00E4</code></td>
+<td style="text-align: right;">228</td>
+<td><code>REG_SERVO5_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机5补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">126</td>
+<td style="text-align: right;"><code>0x00E5</code></td>
+<td style="text-align: right;">229</td>
+<td><code>REG_SERVO6_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机6补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">127</td>
+<td style="text-align: right;"><code>0x00E6</code></td>
+<td style="text-align: right;">230</td>
+<td><code>REG_SERVO7_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机7补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">128</td>
+<td style="text-align: right;"><code>0x00E7</code></td>
+<td style="text-align: right;">231</td>
+<td><code>REG_SERVO8_AUTO_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>舵机补偿</td>
+<td>舵机8补偿使能，0关闭，1开启</td>
+</tr>
+<tr>
+<td style="text-align: right;">129</td>
+<td style="text-align: right;"><code>0x00E8</code></td>
+<td style="text-align: right;">232</td>
+<td><code>REG_DBG_EN</code></td>
+<td>R/W</td>
+<td>uint16</td>
+<td>调试</td>
+<td>调试输出开关，0关闭，1开启</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
