@@ -35,10 +35,10 @@ function AppShell() {
     setAttitude({ roll: 12.35, pitch: -3.78, yaw: 156.42, gyroX: 0.52, gyroY: -1.23, gyroZ: 0.08 })
     setPwm({ servos: [1500, 1620, 1380, 1500, 1750, 1500, 1200, 1500], leds: [680, 250] })
     setPwmFreq({ groups: [{ arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }, { arr: 19999, psc: 83 }] })
-    setAdc({ temps: [25.6, 18.3, 31.2, 22.8], voltage: 11.8, adcRaw: [3128, 2234, 3812, 2786, 3654] })
+    setAdc({ temps: [25.6, 18.3, 31.2, 22.8], voltage: 5.12, adcRaw: [3, 2, 3, 2, 1118] })
     setBaro({ pressure: 101325, altitude: 2850, temperature: 24.6 })
     setMag({ magX: 23.5, magY: -12.3, magZ: 45.8, temperature: 25.2 })
-    setCalib({ gains: [1, 1, 1, 1, 1], offsets: [0, 0, 0, 0, 0], status: 0 })
+    setCalib({ gains: [1.143, 1, 1, 1, 1], offsets: [0, 0, 0, 0, 0], status: 0 })
     setKalman({ q: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001], r: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1] })
     setGpio({ modes: [0, 1, 0, 1], outputs: [0, 1, 0, 1], inputs: [0, 1, 1, 0] })
     setIr({ txCmd: 0, txData: 0x1234, rxStatus: 0, rxData: 0x1234 })
@@ -48,8 +48,12 @@ function AppShell() {
     if (connState !== 'connected') return
     try {
       setError('')
-      const sys = await client.readSystem().catch(() => null)
-      if (sys) setSystem(sys)
+      const sys = await client.readSystem().catch((e: any) => {
+        setError(e.message || 'Modbus 通讯失败')
+        return null
+      })
+      if (!sys) return
+      setSystem(sys)
       if (client.hasPendingWrites()) return
 
       const att = await client.readAttitude().catch(() => null)
@@ -101,6 +105,8 @@ function AppShell() {
     try {
       setError('')
       await handleConnect()
+      const sys = await client.readSystem('high')
+      setSystem(sys)
       clearAttHistory()
       client.readCalibration().then(setCalib).catch(() => null)
       client.readKalmanParams().then(kp => setKalman({

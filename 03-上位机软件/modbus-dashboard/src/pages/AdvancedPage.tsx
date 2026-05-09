@@ -18,7 +18,7 @@ export function AdvancedPage() {
 
   /* === ADC Calibration === */
   const [localCalib, setLocalCalib] = useState<Array<{ gain: number; offset: number }>>(
-    Array.from({ length: 5 }, () => ({ gain: 1, offset: 0 })),
+    [{ gain: 1.143, offset: 0 }, { gain: 1, offset: 0 }, { gain: 1, offset: 0 }, { gain: 1, offset: 0 }, { gain: 1, offset: 0 }],
   )
   const [localCalibSaved, setLocalCalibSaved] = useState(false)
 

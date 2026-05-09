@@ -281,7 +281,7 @@ export class ModbusClient {
   private disconnectHandler: (() => void) | null = null;
   private serialConnectHandler: ((ev: Event) => void) | null = null;
 
-  private static readonly FAIL_THRESHOLD = 3;
+  private static readonly FAIL_THRESHOLD = 5;
   private static readonly MAX_ATTEMPTS = 10;
   private static readonly BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000, 30000, 30000, 30000, 30000];
 
@@ -553,7 +553,7 @@ export class ModbusClient {
     }
   }
 
-  private async transact(frame: Uint8Array, expectedLen: number, timeoutMs = 500): Promise<Uint8Array> {
+  private async transact(frame: Uint8Array, expectedLen: number, timeoutMs = 1000): Promise<Uint8Array> {
     if (!this.writer || !this.reader) throw new Error('未连接');
     this.addLog('TX', this.toHex(frame));
     await this.writer.write(frame);

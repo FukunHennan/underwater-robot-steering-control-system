@@ -1,5 +1,5 @@
-# Check whether port 4173 is occupied
-$port = 4173
+# Check whether port 5174 is occupied
+$port = 5174
 $processes = netstat -ano | Select-String ":$port"
 
 if ($processes) {

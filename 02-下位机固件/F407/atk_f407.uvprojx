@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>.\Drivers;.\User;.\Drivers\SYSTEM;.\Drivers\SYSTEM\sys;.\Drivers\SYSTEM\delay;.\Drivers\SYSTEM\usart;.\Drivers\SYSTEM\usart2;.\Drivers\CMSIS;.\Drivers\CMSIS\Device\ST\STM32F4xx\Include;.\Drivers\CMSIS\Include;.\Drivers\STM32F4xx_HAL_Driver;.\Drivers\STM32F4xx_HAL_Driver\Inc;.\Drivers\BSP;.\Drivers\BSP\ATK_MS901M;.\Drivers\BSP\ADC;.\Drivers\BSP\GPIO;.\Drivers\BSP\PWM;.\Drivers\BSP\Modbus;.\Drivers\BSP\Modbus</IncludePath>
+              <IncludePath>.\Drivers;.\User;.\Drivers\SYSTEM;.\Drivers\SYSTEM\sys;.\Drivers\SYSTEM\delay;.\Drivers\SYSTEM\usart;.\Drivers\SYSTEM\usart2;.\Drivers\CMSIS;.\Drivers\CMSIS\Device\ST\STM32F4xx\Include;.\Drivers\CMSIS\Include;.\Drivers\STM32F4xx_HAL_Driver;.\Drivers\STM32F4xx_HAL_Driver\Inc;.\Drivers\BSP;.\Drivers\BSP\ATK_MS901M;.\Drivers\BSP\ADC;.\Drivers\BSP\GPIO;.\Drivers\BSP\PWM;.\Drivers\BSP\Calib;.\Drivers\BSP\Kalman;.\Drivers\BSP\Modbus;.\Drivers\BSP\Modbus</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -924,9 +924,34 @@
               <FilePath>.\Drivers\BSP\PWM\pwm.c</FilePath>
             </File>
             <File>
+              <FileName>calib.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Drivers\BSP\Calib\calib.c</FilePath>
+            </File>
+            <File>
+              <FileName>kalman.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Drivers\BSP\Kalman\kalman.c</FilePath>
+            </File>
+            <File>
+              <FileName>kalman_persist.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Drivers\BSP\Kalman\kalman_persist.c</FilePath>
+            </File>
+            <File>
               <FileName>modbus.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Drivers\BSP\Modbus\modbus.c</FilePath>
+            </File>
+            <File>
+              <FileName>servo_comp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Drivers\BSP\Modbus\servo_comp.c</FilePath>
+            </File>
+            <File>
+              <FileName>device_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Drivers\BSP\Modbus\device_config.c</FilePath>
             </File>
             <File>
               <FileName>port.c</FileName>

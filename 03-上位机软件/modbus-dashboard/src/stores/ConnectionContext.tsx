@@ -26,9 +26,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [client])
 
   const handleConnect = async () => {
-    try {
-      await client.connect(9600)
-    } catch { }
+    await client.connect(9600)
   }
 
   const handleDisconnect = async () => {
